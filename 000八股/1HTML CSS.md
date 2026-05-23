@@ -13,46 +13,45 @@
 行内元素转换为块级元素 `display:block`
 块级元素转化为行内元素 `display:inline`
 将元素转化为内联元素 `display:inline-block`
-  - `display:inline-block` ****典型使用场景：按钮横向排列；图片 + 文本水平居中对齐。
-  ```CSS
-  button {
-    display: inline-block;
-    width: 100px;
-    height: 40px;
-  }
-  // [按钮1] [按钮2] [按钮3]
+- `display:inline-block` 典型使用场景：按钮横向排列；图片 + 文本水平居中对齐。
+```CSS
+button {
+  display: inline-block;
+  width: 100px;
+  height: 40px;
+}
+// [按钮1] [按钮2] [按钮3]
 
-  <span>文字 <img src="a.png"> 文字</span>
-  img {
-    vertical-align: middle;
-  }
-  // 让图片在这一行里垂直居中
-  ```
+<span>文字 <img src="a.png"> 文字</span>
+img {
+  vertical-align: middle;
+}
+// 让图片在这一行里垂直居中
+```
 
 ## src 和 href 的区别
 
 `src`和`href`都是用来加载外部资源，区别如下
 
-- `href`：**用于建立当前文档与外部资源的关联关系，常见于** `<a>、<link>` **等**。它表示“链接到”某资源，不把资源内容立即替换到当前位置。
-- `src`：把外部资源**「下载并插入/执行/渲染」**到当前文档，例如 `<img>`**、`**<script>**`、`**<iframe>**`、`**<video>**`。**
+- `href`：**用于建立当前文档与外部资源的关联关系，常见于** `<a>、<link>` 等。它表示“链接到”某资源，不把资源内容立即替换到当前位置。
+- `src`：把外部资源「下载并插入/执行/渲染」**到当前文档，例如 `<img>`**、`**<script>**`、`**<iframe>**`、`**<video>**`。**
 - 浏览器处理差异：
-  - 浏览器在**解析 HTML 时**，遇到 src**（`**<script src=...>`**） 会暂停 DOM 解析**，**下载并执行资源**，因此会阻塞；
+  - 浏览器在**解析 HTML 时**，遇到 src（`<script src=...>`） 会暂停 DOM 解析，**下载并执行资源**，因此会阻塞；
   - 浏览器**解析 href** `<link href="style.css">`不会阻塞 DOM 解析，但是页面渲染会等 CSS。
-  - **这就是官方建议使用 link 引入而不是 @ import 的原因。`**@import url('style.css')` 下载主 CSS，解析到 @import，再请求 style.css，是**串行加载**；l**ink 写法 浏览器可以并行下载 CSS**，提前开始构建 CSSOM，性能更好。
+  - 这就是官方建议使用 link 引入而不是 @ import 的原因。`@import url('style.css')` 下载主 CSS，解析到 @import，再请求 style.css，是串行加载；link 写法 浏览器可以并行下载 CSS，提前开始构建 CSSOM，性能更好。
 
 ## defer 和 async 的区别
 
 **src 一定会阻塞吗？**不一定。
 
-- 如果没有defer或async属性，浏览器会**立即加载并执行相应**的**脚本**。它不会等待后续加载的文档元素，读取到就会开始加载和执行，这样就阻塞了后续文档的加载。 现代优化方式： `defer` 和 `async` ：**可以并行加载JS文件，让 JS 下载不阻塞 HTML 解析，提高首屏性能。**
-- **defer：`**<script src="main.js" defer></script>`。defer 不阻塞 HTML 解析，JS 并行下载**，JS会等待整个页面全部加载完成了（DOM解析完成后）再执行**，按**script 标签出现顺序** 执行
-- **async：**不阻塞 HTML 解析，JS 并行下载，**下载完成立即执行**，**不保证顺序。**
+- 如果没有defer或async属性，浏览器会**立即加载并执行相应**的**脚本**。它不会等待后续加载的文档元素，读取到就会开始加载和执行，这样就阻塞了后续文档的加载。 现代优化方式： `defer` 和 `async` ：可以并行加载JS文件，让 JS 下载不阻塞 HTML 解析，提高首屏性能。
+- defer：`<script src="main.js" defer></script>`。defer 不阻塞 HTML 解析，JS 并行下载，JS会等待整个页面全部加载完成了（DOM解析完成后）再执行，按script 标签出现顺序 执行
+- async：不阻塞 HTML 解析，JS 并行下载，下载完成立即执行，不保证顺序。
 
 ## Preload 和 prefetch
 
-> **preload**：用于**当前页面关键资源**，浏览器会**高优先级立即加载。preload 解决首屏性能**
->
-> **prefetch**：用于**未来可能访问的资源**，浏览器会在**空闲时低优先级加载。prefetch 优化页面跳转体验**
+- preload：用于**当前页面关键资源**，浏览器会**高优先级立即加载。preload 解决首屏性能**
+- prefetch：用于**未来可能访问的资源**，浏览器会在**空闲时低优先级加载。prefetch 优化页面跳转体验**
 
 ## flex 布局理解
 
@@ -81,7 +80,7 @@
 5. **align-content**：交叉轴上的多行对齐
   1. 仅当 `flex-wrap: wrap` 且子元素换行时生效
   2. 类似 `justify-content`，但作用于多行整体（如多行卡片在容器中垂直居中）
-  3. **值**：flex-start（所有行靠近头部）、flex-end、center、space-between、space-around
+  3. 值：flex-start（所有行靠近头部）、flex-end、center、space-between、space-around
 
 **子元素的主要属性：**
 
@@ -193,7 +192,7 @@ grow 分配：1:1
 
 1. 圣杯布局
 
-```Python
+```
 ┌────────────────────┐
 │             header              │
 ├──────┬──────┬──────┤
