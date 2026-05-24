@@ -314,8 +314,10 @@ var uniquePaths = function(m, n) {
 ```
 
 ## 16. 最小路径和
+
 尤其注意初始化路径：dp[0][0] = grid[0][0]，第一行：累加，第一列：累加
 dp[i][j] = 到(i,j)的最小路径和 = min(上, 左) + 当前值
+
 ```js
 var minPathSum = function(grid) {
     const m = grid.length;
@@ -338,11 +340,14 @@ var minPathSum = function(grid) {
 ```
 
 ## 17. 最长回文子串
+
 dp[i][j] = s[i..j] 是否是回文
+
 ```js
 s[i] === s[j] && (j-i <= 2 || dp[i+1][j-1])
     dp[i][i] = true
 ```
+
 ```js
 var longestPalindrome = function(s) {
     const n = s.length;
@@ -369,11 +374,13 @@ var longestPalindrome = function(s) {
 ```
 
 ## 18. 最长公共子序列
+
 dp[i][j] = 前i个 & 前j个 的最长公共子序列长度
 相等：dp[i][j] = dp[i-1][j-1] + 1
 不等：dp[i][j] = max(dp[i-1][j], dp[i][j-1])
 dp[0][j] = 0
 dp[i][0] = 0
+
 ```js
 var longestCommonSubsequence = function(text1, text2) {
     const m = text1.length;
@@ -392,3 +399,319 @@ var longestCommonSubsequence = function(text1, text2) {
     return dp[m][n];
 };
 ```
+
+# 字符串
+## 19. 版本比较
+给你两个 版本号字符串 version1 和 version2 ，请你比较它们。版本号由被点 '.' 分开的修订号组成。修订号的值 是它 转换为整数 并忽略前导零。
+比较版本号时，请按 从左到右的顺序 依次比较它们的修订号。如果其中一个版本字符串的修订号较少，则将缺失的修订号视为 0。
+```js
+var compareVersion = function(version1, version2) {
+    const v1 = version1.split(".");
+    const v2 = version2.split(".");
+    let i = 0;
+    for (let i = 0; i < v1.length || i < v2.length; i++){
+        let x = Number(v1[i]) || 0;
+        let y = Number(v2[i]) || 0;
+        if (x < y) return -1;
+        else if (x > y) return 1;
+    }
+    return 0;
+};
+```
+
+## 20. 字符串相加
+```js
+var addStrings = function(num1, num2) {
+    const res = [];
+    let carry = 0;
+    for (let i = num1.length - 1, j = num2.length - 1; i >= 0 || j >= 0; i--, j--) {
+        let x = Number(num1[i]) || 0;
+        let y = Number(num2[j]) || 0;
+        let sum = x + y + carry;
+        res.push(sum % 10);
+        carry = Math.floor(sum / 10);
+    }
+    if (carry) {
+        res.push(carry);
+    }
+    return res.reverse().join('');
+};
+```
+
+
+# 二叉树
+
+## DFS 遍历
+
+### 19. 中序 / 前序 / 后序通用模板
+```js
+const dfs = (root) => {
+    if (!root) return;
+
+    // 前序：处理当前节点
+    // dfs(root.left);
+
+    // 中序：处理当前节点
+    // dfs(root.right);
+
+    // 后序：处理当前节点
+};
+```
+
+### 20. 二叉树的中序遍历
+```js
+var inorderTraversal = function(root) {
+    const res = [];
+    const dfs = (node) => {
+        if (!node) return;
+        dfs(node.left);
+        res.push(node.val);
+        dfs(node.right);
+    };
+    dfs(root);
+    return res;
+};
+```
+
+## 路径类 DFS
+
+这类题的核心就两件事
+
+- `path / sum / state` 作为递归参数向下传
+- 到叶子节点时做一次结算
+
+### 21. 路径总和
+```js
+var hasPathSum = function(root, targetSum) {
+    if (!root) return false;
+    if (!root.left && !root.right) {
+        return root.val === targetSum;
+    }
+    const nextTarget = targetSum - root.val;
+    return hasPathSum(root.left, nextTarget) || hasPathSum(root.right, nextTarget);
+};
+```
+
+### 22. 二叉树的所有路径
+```js
+var binaryTreePaths = function(root) {
+    const res = [];
+    const dfs = (node, path) => {
+        if (!node) return;
+
+        const nextPath = path ? `${path}->${node.val}` : `${node.val}`;
+        if (!node.left && !node.right) {
+            res.push(nextPath);
+            return;
+        }
+
+        dfs(node.left, nextPath);
+        dfs(node.right, nextPath);
+    };
+
+    dfs(root, "");
+    return res;
+};
+```
+
+### 23. 求根到叶子节点数字之和
+```js
+var sumNumbers = function(root) {
+    let total = 0;
+
+    const dfs = (node, currentSum) => {
+        if (!node) return;
+
+        const nextSum = currentSum * 10 + node.val;
+        if (!node.left && !node.right) {
+            total += nextSum;
+            return;
+        }
+
+        dfs(node.left, nextSum);
+        dfs(node.right, nextSum);
+    };
+
+    dfs(root, 0);
+    return total;
+};
+```
+
+## 后序聚合
+
+这类题的统一思路是：
+
+- 先拿到左右子树的信息
+- 再在当前节点做汇总
+
+### 24. 二叉树的最大深度
+```js
+var maxDepth = function(root) {
+    if (!root) return 0;
+    const left = maxDepth(root.left);
+    const right = maxDepth(root.right);
+    return Math.max(left, right) + 1;
+};
+```
+
+### 25. 二叉树的最大直径
+```js
+var diameterOfBinaryTree = function(root) {
+    let res = 0;
+
+    const dfs = (node) => {
+        if (!node) return 0;
+        const left = dfs(node.left);
+        const right = dfs(node.right);
+        res = Math.max(res, left + right);
+        return Math.max(left, right) + 1;
+    };
+
+    dfs(root);
+    return res;
+};
+```
+
+### 26. 二叉树的最近公共祖先
+```js
+var lowestCommonAncestor = function(root, p, q) {
+    if (!root || root === p || root === q) return root;
+
+    const left = lowestCommonAncestor(root.left, p, q);
+    const right = lowestCommonAncestor(root.right, p, q);
+
+    if (left && right) return root;
+    return left ? left : right;
+};
+```
+
+## 树结构变换
+
+### 27. 反转二叉树
+```js
+var flipTree = function(root) {
+    if (!root) return null;
+    [root.left, root.right] = [root.right, root.left];
+    flipTree(root.left);
+    flipTree(root.right);
+    return root;
+};
+```
+
+### 28. 对称二叉树
+```js
+var checkSymmetricTree = function(root) {
+    if (!root) return true;
+
+    const dfs = (t1, t2) => {
+        if (!t1 && !t2) return true;
+        if (!t1 || !t2) return false;
+        if (t1.val !== t2.val) return false;
+        return dfs(t1.left, t2.right) && dfs(t1.right, t2.left);
+    };
+
+    return dfs(root, root);
+};
+```
+
+### 29. 从前序与中序遍历序列构造二叉树
+```js
+var buildTree = function(preorder, inorder) {
+    if (!preorder.length || !inorder.length) return null;
+
+    const rootVal = preorder[0];
+    const root = new TreeNode(rootVal);
+    const index = inorder.indexOf(rootVal);
+
+    const leftInorder = inorder.slice(0, index);
+    const rightInorder = inorder.slice(index + 1);
+    const leftPreorder = preorder.slice(1, 1 + leftInorder.length);
+    const rightPreorder = preorder.slice(1 + leftInorder.length);
+
+    root.left = buildTree(leftPreorder, leftInorder);
+    root.right = buildTree(rightPreorder, rightInorder);
+    return root;
+};
+```
+
+## 层序遍历
+
+这组题本质上都能抽成同一个 BFS 框架，只是“每层怎么取结果”不一样。
+
+### 30. 基础层序遍历
+```js
+var levelOrder = function(root) {
+    if (!root) return [];
+
+    const res = [];
+    const queue = [root];
+
+    while (queue.length) {
+        const size = queue.length;
+        const level = [];
+
+        for (let i = 0; i < size; i++) {
+            const node = queue.shift();
+            level.push(node.val);
+            if (node.left) queue.push(node.left);
+            if (node.right) queue.push(node.right);
+        }
+
+        res.push(level);
+    }
+
+    return res;
+};
+```
+
+### 31. 锯齿形层次遍历
+```js
+var zigzagLevelOrder = function(root) {
+    if (!root) return [];
+
+    const res = [];
+    const queue = [root];
+    let leftToRight = true;
+
+    while (queue.length) {
+        const size = queue.length;
+        const level = [];
+
+        for (let i = 0; i < size; i++) {
+            const node = queue.shift();
+            if (leftToRight) level.push(node.val);
+            else level.unshift(node.val);
+            if (node.left) queue.push(node.left);
+            if (node.right) queue.push(node.right);
+        }
+
+        res.push(level);
+        leftToRight = !leftToRight;
+    }
+
+    return res;
+};
+```
+
+### 32. 二叉树的右视图
+```js
+var rightSideView = function(root) {
+    if (!root) return [];
+
+    const res = [];
+    const queue = [root];
+
+    while (queue.length) {
+        const size = queue.length;
+        for (let i = 0; i < size; i++) {
+            const node = queue.shift();
+            if (i === size - 1) res.push(node.val);
+            if (node.left) queue.push(node.left);
+            if (node.right) queue.push(node.right);
+        }
+    }
+
+    return res;
+};
+```
+
