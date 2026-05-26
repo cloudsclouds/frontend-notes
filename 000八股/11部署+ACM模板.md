@@ -98,6 +98,7 @@ docker run -d -p 80:3001 --name vue-python-app vue-python-app:latest
 3. Lint / Test：第二层质量保障，通常在 CI 中执行，检查代码规范；做 TS 类型检查；Unit Test （单元测试）；E2E Test（端到端测试）
 
 4. CI Pipeline（核心流水线）：代码一提交，自动构建验证。
+**构建前端项目，生成生产环境静态文件 dist/**
 
 ```
 拉代码
@@ -116,6 +117,9 @@ Build
 ```
 
 5. Docker Build：保证“开发环境、测试环境、生产环境”一致，把Node、Nginx、构建产物、依赖全部打包，形成镜像。
+**上传：dist/、deploy/ 到服务器的部署目录**
+
+**登录服务器，执行服务器端脚本：构建 Docker 镜像；启动容器；映射端口；用 Nginx 对外提供服务**。
 
 6. Artifact Upload：上传构建产物
 
