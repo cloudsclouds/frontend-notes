@@ -1,5 +1,28 @@
 # HTML CSS
 
+## meta 标签
+meta 标签主要是给浏览器、搜索引擎等提供页面的元数据，不直接显示在页面上。
+
+设置 SEO 相关的关键词、描述，设置字符编码让文字正常显示，控制移动端视口避免页面缩放错乱，设置页面自动刷新或跳转，指定 IE 浏览器用最新模式渲染等。
+
+## 如何创建DOM元素，添加属性？
+用 document.createElement (' 标签名 ') 创建元素，比如 const li = document.createElement ('li')。
+
+添加属性可以用 setAttribute (' 属性名 ', ' 值 ')，比如 li.setAttribute ('class', 'task-item')；
+
+也能直接赋值，比如 li.id = 'task1'、li.style.color = 'red'。
+
+创建后用 parent.appendChild (li) 添加到父元素里。
+
+## 移动端如何实现 0.5PX 的边框？
+可以用 transform: scaleY (0.5) 缩放实现；
+
+给元素加伪元素::after，设置 height:1px，再缩放 0.5，同时定位到元素底部；
+
+也能通过 box-shadow: 0 0.5px 0 #000，利用阴影模拟细边框。
+
+用伪元素缩放是最常用的方法，兼容性也好。
+
 ## 行内元素、块级元素
 
 在HTML中，元素可以分为块级元素和行类元素。在CSS规范规定中，每个元素都有display属性，确定该元素的类型，每个元素都有默认的display值，比如div默认值为“block”，成为“块级”元素；span默认display属性值为“inline”，是“行内“元素。

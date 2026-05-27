@@ -1,6 +1,25 @@
 # Vue 核心语法与面试笔记
 
----
+## 1. Vue 的生命周期
+Vue 的生命周期分为创建、挂载、更新、销毁四个阶段。
+
+创建阶段有 beforeCreate 和 created，beforeCreate 时 data 和 methods 还未初始化，created 时已初始化，可以访问响应式数据，但是页面 DOM 还没有生成。
+
+挂载阶段有 beforeMount 和 mounted，beforeMount 模板已经编译成虚拟 DOM，但真实 DOM 还没有挂载到页面；mounted 是 DOM 挂载完成，适合操作 DOM。
+
+更新阶段有 beforeUpdate 和 updated，beforeUpdate 是数据更新前，updated 是 DOM 更新后。
+
+销毁阶段有 beforeDestroy 和 destroyed，beforeDestroy 可清除定时器，移除事件监听，destroyed 时组件完全销毁。
+
+Vue3 还的名字有变化，比如
+beforeDestroy → beforeUnmount
+destroyed → unmounted
+，还新增了 setup、onBeforeMount 等 Composition API 生命周期钩子。
+
+## 2. 父子组件生命周期顺序
+父组件先创建，子组件先挂载，最后父组件挂载完成；因为父组件要等子组件渲染结束之后，自己才算真正挂载完成。
+
+父组件销毁时，会先销毁子组件，最后再销毁父组件；父组件先进入销毁流程，但会先把自己的子组件全部销毁掉，最后自己才真正销毁完成。
 
 ## 1. Vue 核心概览
 
