@@ -1274,296 +1274,270 @@ interface FileAssetRepository {
 
 ## 3. SSE 流式问答（fetch + ReadableStream + 逐 token 渲染）
 
-```ts
-type StreamHandle = { abort: () => void };
+### 前端
+```tsx
+// src/types/chat.ts
+export type ChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  status?: 'streaming' | 'done' | 'error' | 'cancelled';
+};
 
-async function streamAnswer(
-  payload: Record<string, unknown>,
-  onDelta: (text: string) => void,
-): Promise<StreamHandle> {
-  const controller = new AbortController();
-
+// src/api/chat.ts
+export async function streamChat(
+  prompt: string,
+  onChunk: (chunk: string) => void,
+  signal: AbortSignal
+) {
   const res = await fetch('/api/chat/stream', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: controller.signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+    },
+    body: JSON.stringify({ prompt }),
+    signal,
   });
 
-  const reader = res.body!.getReader();
+  if (!res.ok || !res.body) {
+    throw new Error('流式接口请求失败');
+  }
+
+  const reader = res.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
 
+  // fetch + ReadableStream 的关键点：持续读流、持续解析、持续渲染。
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    // 注意 stream: true，避免中文多字节字符被截断
     buffer += decoder.decode(value, { stream: true });
 
-    // SSE 可能半包/粘包，所以需要手动按事件分隔符切分
-    let splitIndex = buffer.indexOf('\n\n');
-    while (splitIndex !== -1) {
-      const packet = buffer.slice(0, splitIndex);
-      buffer = buffer.slice(splitIndex + 2);
+    // SSE 数据可能一个 chunk 里包含多个事件，所以要按事件分隔符切片。
+    let boundaryIndex = buffer.indexOf('\n\n');
+    while (boundaryIndex !== -1) {
+      const rawEvent = buffer.slice(0, boundaryIndex).trim();
+      buffer = buffer.slice(boundaryIndex + 2);
+      boundaryIndex = buffer.indexOf('\n\n');
 
-      const dataLine = packet
+      if (!rawEvent) continue;
+      if (rawEvent.includes('data: [DONE]')) return;
+
+      const dataLine = rawEvent
         .split('\n')
-        .find((line) => line.startsWith('data:'));
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.replace(/^data:\s?/, ''))
+        .join('');
 
-      if (dataLine) {
-        const data = dataLine.replace(/^data:\s*/, '');
-        if (data !== '[DONE]') {
-          onDelta(JSON.parse(data).content);
-        }
-      }
-
-      splitIndex = buffer.indexOf('\n\n');
+      if (dataLine) onChunk(dataLine);
     }
   }
+}
 
-  return { abort: () => controller.abort() };
+// src/hooks/useStreamChat.ts
+import { useMemo, useRef, useState } from 'react';
+import { streamChat } from '../api/chat';
+import type { ChatMessage } from '../types/chat';
+
+export function useStreamChat() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const controllerRef = useRef<AbortController | null>(null);
+  const streamingIdRef = useRef('');
+
+  const appendAssistantChunk = (chunk: string) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === streamingIdRef.current
+          ? { ...msg, content: msg.content + chunk, status: 'streaming' }
+          : msg
+      )
+    );
+  };
+
+  const send = async (prompt: string) => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: prompt,
+      status: 'done',
+    };
+
+    const assistantMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      status: 'streaming',
+    };
+
+    streamingIdRef.current = assistantMsg.id;
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setLoading(true);
+
+    try {
+      await streamChat(prompt, appendAssistantChunk, controller.signal);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsg.id ? { ...msg, status: 'done' } : msg
+        )
+      );
+    } catch (error) {
+      const isAbort = error instanceof DOMException && error.name === 'AbortError';
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsg.id
+            ? { ...msg, status: isAbort ? 'cancelled' : 'error' }
+            : msg
+        )
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stop = () => controllerRef.current?.abort();
+
+  return useMemo(() => ({ messages, loading, send, stop }), [messages, loading]);
 }
 ```
 
-这个 demo 可以从“体验”和“工程实现”两方面讲：
+### 后端代码
 
-- **体验层面**：用户不需要等整段回答生成完才看到内容，而是边生成边展示，感知更快；
-- **工程层面**：`fetch + ReadableStream` 让前端可以自己掌控流的读取节奏，不依赖浏览器自动处理；
-- **协议层面**：SSE 的事件是按 `\n\n` 分隔的，所以前端必须处理半包和粘包，否则容易出现 JSON 解析错误；
-- **控制层面**：`AbortController` 让用户可以中途停止生成，避免无效请求继续消耗资源。
+```java
+// src/main/java/com/demo/chat/controller/ChatController.java
+@RestController
+@RequestMapping("/api/chat")
+public class ChatController {
 
-如果要再往深一点讲，还可以补充：
-- 需要考虑网络抖动和重连；
-- 如果流中返回的是工具调用结果，前端要区分展示内容和结构化指令；
-- 对长回答来说，前端还会做节流渲染，避免每个 token 都触发高频重绘。
+    private final ChatService chatService;
+
+    public ChatController(ChatService chatService) {
+        this.chatService = chatService;
+    }
+
+    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(@RequestBody ChatRequest request, HttpServletRequest servletRequest) {
+        // SseEmitter 让后端可以持续向前端推送文本片段。
+        SseEmitter emitter = new SseEmitter(0L);
+        chatService.streamAnswer(request.getPrompt(), emitter, servletRequest);
+        return emitter;
+    }
+}
+
+// src/main/java/com/demo/chat/service/ChatService.java
+public interface ChatService {
+    void streamAnswer(String prompt, SseEmitter emitter, HttpServletRequest servletRequest);
+}
+
+// src/main/java/com/demo/chat/service/impl/ChatServiceImpl.java
+@Service
+public class ChatServiceImpl implements ChatService {
+
+    private final MemoryMapper memoryMapper;
+
+    public ChatServiceImpl(MemoryMapper memoryMapper) {
+        this.memoryMapper = memoryMapper;
+    }
+
+    @Override
+    public void streamAnswer(String prompt, SseEmitter emitter, HttpServletRequest servletRequest) {
+        // 这里模拟大模型逐 token 输出；真实场景可替换为模型 SDK 或上游问答服务。
+        executor().execute(() -> {
+            try {
+                String l1 = loadL1(prompt);
+                String l2 = loadL2(prompt);
+                String l3 = loadL3(prompt);
+
+                String answer = "结合最近对话、滚动摘要和长期记忆给出回答：" + prompt
+                        + "\nL1=" + l1 + "\nL2=" + l2 + "\nL3=" + l3;
+
+                for (String token : answer.split("")) {
+                    emitter.send(SseEmitter.event().data(token));
+                    Thread.sleep(20);
+                }
+
+                // 发送结束标记，前端据此完成收尾。
+                emitter.send(SseEmitter.event().data("[DONE]"));
+                emitter.complete();
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        });
+
+        // 连接关闭时清理资源，避免任务继续跑。
+        emitter.onCompletion(() -> cleanup(servletRequest));
+        emitter.onTimeout(() -> cleanup(servletRequest));
+        emitter.onError((ex) -> cleanup(servletRequest));
+    }
+
+    private String loadL1(String prompt) {
+        return "最近窗口上下文";
+    }
+
+    private String loadL2(String prompt) {
+        return "滚动摘要";
+    }
+
+    private String loadL3(String prompt) {
+        return memoryMapper.findLongTermMemory(prompt).stream()
+                .map(MemoryEntity::getContent)
+                .collect(Collectors.joining("；"));
+    }
+
+    private void cleanup(HttpServletRequest servletRequest) {
+        // 真实场景可在这里中止上游请求、释放线程池任务、清理临时上下文。
+    }
+
+    private ExecutorService executor() {
+        return Executors.newSingleThreadExecutor();
+    }
+}
+
+// src/main/java/com/demo/chat/dto/ChatRequest.java
+public class ChatRequest {
+    private String prompt;
+
+    public String getPrompt() {
+        return prompt;
+    }
+
+    public void setPrompt(String prompt) {
+        this.prompt = prompt;
+    }
+}
+
+// src/main/java/com/demo/chat/entity/MemoryEntity.java
+public class MemoryEntity {
+    private Long id;
+    private String memoryKey;
+    private String content;
+    private Integer confidence;
+    private LocalDateTime updatedAt;
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+}
+
+// src/main/java/com/demo/chat/mapper/MemoryMapper.java
+@Mapper
+public interface MemoryMapper {
+    List<MemoryEntity> findLongTermMemory(@Param("prompt") String prompt);
+}
+```
 
 ## 4. L1 / L2 / L3 三层记忆
 
-```ts
-type MemoryItem = {
-  content: string;
-  confidence: number;
-  sourceTurn: number;
-  updatedAt: number;
-};
-
-class MemoryManager {
-  // L1：最近窗口，保留最靠近当前任务的原文
-  private l1: string[] = [];
-  // L2：滚动摘要，压缩长上下文
-  private l2 = '';
-  // L3：长期记忆，只存稳定偏好和事实
-  private l3 = new Map<string, MemoryItem>();
-
-  appendTurn(turn: string) {
-    this.l1.push(turn);
-
-    // 超过窗口后，把滑出的信息压缩进 L2，并尝试写入 L3
-    if (this.l1.length > 6) {
-      const overflow = this.l1.shift()!;
-      this.l2 = this.rollSummary(this.l2, overflow);
-      this.maybeWriteLongTerm(overflow);
-    }
-  }
-
-  private rollSummary(summary: string, delta: string) {
-    return `${summary}\n- 新增信息：${delta}`;
-  }
-
-  private maybeWriteLongTerm(delta: string) {
-    // 只写入长期稳定信息，避免错误记忆污染
-    const shouldStore = /偏好|长期|习惯|确认/.test(delta);
-    if (!shouldStore) return;
-
-    this.l3.set(delta, {
-      content: delta,
-      confidence: 0.92,
-      sourceTurn: Date.now(),
-      updatedAt: Date.now(),
-    });
-  }
-
-  buildPrompt() {
-    const longTerm = [...this.l3.values()].map((m) => m.content).join('\n');
-    // 生成时按 L1 -> L2 -> L3 组合，而不是简单拼接全部历史
-    return [this.l1.join('\n'), this.l2, longTerm].filter(Boolean).join('\n\n');
-  }
-}
-```
-
-这个 demo 可以这样解释：
-
-- **L1** 是短期上下文，保留最近几轮的原始对话，保证当前任务的连贯性；
-- **L2** 是滚动摘要，用来把历史逐步压缩，解决上下文长度有限的问题；
-- **L3** 是长期记忆，只保存稳定偏好、身份信息、长期需求等内容，避免把临时信息错误写入。
-
-为什么要分三层：
-1. 直接存全量历史，成本高而且上下文会越来越长；
-2. 只做摘要会损失细节，容易影响最近任务判断；
-3. 所以要把“最近细节”和“长期稳定事实”拆开管理。
-
-真正落地时，通常还要补：
-- 记忆写入白名单/黑名单；
-- 记忆过期和清理策略；
-- 多租户隔离，避免不同用户的记忆混用；
-- 记忆召回时的权重排序。
-
 ## 5. RAG 检索增强问答（BM25 + 向量混合召回 + 重排 + 来源回填）
 
-```ts
-type Chunk = {
-  id: string;
-  text: string;
-  bm25Score?: number;
-  vectorScore?: number;
-};
-
-function rrfScore(rank: number) {
-  return 1 / (rank + 60);
-}
-
-function rrfRank(bm25List: Chunk[], vectorList: Chunk[]) {
-  const scoreMap = new Map<string, { chunk: Chunk; score: number }>();
-
-  bm25List.forEach((chunk, index) => {
-    const prev = scoreMap.get(chunk.id)?.score ?? 0;
-    scoreMap.set(chunk.id, {
-      chunk,
-      score: prev + rrfScore(index + 1),
-    });
-  });
-
-  vectorList.forEach((chunk, index) => {
-    const prev = scoreMap.get(chunk.id)?.score ?? 0;
-    scoreMap.set(chunk.id, {
-      chunk,
-      score: prev + rrfScore(index + 1),
-    });
-  });
-
-  return [...scoreMap.values()].sort((a, b) => b.score - a.score).map((x) => x.chunk);
-}
-
-async function retrieve(question: string) {
-  const [bm25List, vectorList] = await Promise.all([
-    fetch('/api/search/bm25', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
-    }).then((r) => r.json()),
-    fetch('/api/search/vector', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question }),
-    }).then((r) => r.json()),
-  ]);
-
-  // 先混合召回，再重排，最后只保留少量高相关证据
-  return rrfRank(bm25List, vectorList).slice(0, 5);
-}
-
-async function answerWithRAG(question: string) {
-  const chunks = await retrieve(question);
-  const context = chunks.map((c) => `【来源:${c.id}】${c.text}`).join('\n\n');
-
-  return fetch('/api/llm/answer', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, context }),
-  });
-}
-```
-
-这个 demo 可以按“检索链路”来讲：
-
-- **召回层**：BM25 更擅长关键词命中，向量检索更擅长语义匹配，两者结合能兼顾精确和泛化；
-- **重排层**：把两个召回源混合后，再做统一排序，避免某一个检索源权重过大；
-- **生成层**：把检索结果作为上下文喂给模型，减少幻觉；
-- **可解释性**：把来源一起带回去，回答里能说明“这句话依据哪段资料得到的”。
-
-如果你要面试里讲得更完整，可以补一句：
-- 召回的 chunk 还会做去重、截断、片段清洗；
-- 长文档通常要先切块，再做索引更新；
-- 线上还会增加命中率、引用准确率、召回耗时等监控指标。
-
 ## 6. 文档内 AI 辅助创作（多智能体编排 + Reflection Loop）
-
-```ts
-type Task = 'rewrite' | 'translate' | 'summary' | 'mermaid';
-
-type AgentResult = {
-  content: string;
-  ops?: Array<{ type: 'replace' | 'insert'; from?: number; to?: number; value: string }>;
-};
-
-type ReviewResult = {
-  pass: boolean;
-  content: string;
-  feedback?: string;
-};
-
-class Orchestrator {
-  async run(task: Task, input: string): Promise<AgentResult> {
-    const complexity = this.score(input);
-
-    // 简单任务走 Fast，复杂任务走 Swarm
-    if (complexity < 0.4) {
-      return this.routeFast(task, input);
-    }
-
-    return this.routeSwarm(task, input);
-  }
-
-  private score(text: string) {
-    return Math.min(text.length / 2000, 1);
-  }
-
-  private async routeFast(task: Task, input: string) {
-    return workerMap[task](input);
-  }
-
-  private async routeSwarm(task: Task, input: string) {
-    const plan = await planner(input); // Planner：拆任务
-    const draft = await Promise.all(plan.steps.map((step) => worker(step, input))); // Worker：并行执行
-    const reviewed = await critic(draft.join('\n')); // Critic：检查质量
-
-    if (!reviewed.pass) {
-      // Reflection Loop：避免无限反思，实际项目里会设置阈值
-      return reflector(reviewed.feedback ?? 'format error');
-    }
-
-    return merger(reviewed.content); // Merger：统一聚合，并返回结构化回填协议
-  }
-}
-
-const workerMap: Record<Task, (input: string) => Promise<AgentResult>> = {
-  rewrite: async (input) => ({ content: `润色后的内容：${input}` }),
-  translate: async (input) => ({ content: `Translated: ${input}` }),
-  summary: async (input) => ({ content: `摘要：${input.slice(0, 80)}...` }),
-  mermaid: async () => ({ content: 'graph TD; A-->B;' }),
-};
-```
-
-这个 demo 的重点是“多智能体流水线”，可以按下面的逻辑讲：
-
-- **路由**：先判断任务复杂度，简单的直接走快路径，复杂的才进入多智能体流程；
-- **Planner**：负责拆分任务，决定每一步该做什么；
-- **Worker**：并行执行子任务，提高效率；
-- **Critic**：对结果做质量检查，避免低质量内容直接返回；
-- **Reflector**：在结果不通过时进行反思和修正；
-- **Merger**：把各个子结果汇总成最终输出。
-
-它背后的核心价值是：
-1. 不把所有问题都丢给一个 Prompt；
-2. 把“生成”和“审核”解耦；
-3. 让复杂任务具备可控性、可扩展性和更高成功率。
-
-如果继续扩展，还可以补：任务队列、失败重试、并发限制、上下文缓存、结果可追踪日志、工具调用协议等。
-
----
-
-如果你愿意，我下一步可以继续帮你做两种版本：
-
-1. **面试讲解版**：每个 demo 再补 3~5 句“我会怎么讲”
-2. **简历精简版**：把每个点压成更短的高密度描述，适合直接贴到简历里
