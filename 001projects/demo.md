@@ -1,4 +1,4 @@
-# BioNova AI 代码 Demo
+# BioNote AI 代码 Demo
 ## 1. 多人实时协同编辑（Yjs + WebSocket）
 ### 前端
 ```ts
