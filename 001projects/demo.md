@@ -627,72 +627,650 @@ public class CollabWebSocketHandler extends BinaryWebSocketHandler {
 
 ## 2. 大文件上传链路（切片 + 断点续传 + 秒传 + 任务恢复）
 
+### 前端
 ```ts
-const CHUNK_SIZE = 2 * 1024 * 1024;
+/**
+ * 设计目标：
+ * 1. 先把大文件切成多个小分片，降低单次请求失败成本。
+ * 2. 先请求后端拿到“哪些分片已经上传过”，再只补传缺失分片，支持断点续传。
+ * 3. 用文件指纹（hash）做秒传判断，避免重复上传已经存在的文件。
+ * 4. 上传任务状态持久化到后端，刷新页面后可以继续之前的任务。
+ * 5. 后端如果接 MinIO，前端上传逻辑基本不变，依旧只需要和上传接口交互。
+ */
 
-type UploadStatus = 'instant' | 'uploading' | 'done';
+const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB：分片大小。
+const MAX_CONCURRENCY = 4; // 同时上传的分片数
 
-function splitFile(file: File) {
-  const chunks: Blob[] = [];
-  for (let start = 0; start < file.size; start += CHUNK_SIZE) {
-    chunks.push(file.slice(start, start + CHUNK_SIZE));
+type UploadTaskStatus = 'idle' | 'hashing' | 'checking' | 'uploading' | 'paused' | 'done' | 'error';
+
+type UploadTask = {
+  taskId: string;
+  fileHash: string;
+  fileName: string;
+  fileSize: number;
+  totalChunks: number;
+  uploadedChunks: number[];
+  status: UploadTaskStatus;
+};
+
+/**
+ * 生成文件指纹。
+ * - 真正生产里，hash 计算建议放到 Web Worker，避免阻塞主线程。
+ * - 这里为了 demo 简洁，直接用切片内容做简单哈希演示。
+ * - 文件名不可靠，因为同名文件可能内容不同，所以应该尽量依赖内容 hash。
+ */
+async function createFileHash(file: File): Promise<string> {
+  const slice = file.slice(0, Math.min(file.size, 2 * 1024 * 1024));
+  const buffer = await slice.arrayBuffer();
+
+  // 真实场景建议使用更稳定的 MD5 / SHA-256 实现
+  let hash = 0;
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < view.length; i++) {
+    hash = (hash * 31 + view[i]) >>> 0;
   }
-  return chunks;
+
+  return `${file.name}-${file.size}-${hash}`;
 }
 
-async function uploadLargeFile(file: File): Promise<UploadStatus> {
-  const fileHash = await calcHash(file); // 文件指纹，用于秒传和任务恢复
+/**
+ * 按固定大小切片，每个分片都会带上 chunkIndex，服务端后续靠这个序号判断：
+ * 1. 哪些分片已经上传过
+ * 2. 缺哪些分片
+ * 3. 合并时按什么顺序处理
+ */
+function sliceFile(file: File) {
+  const chunks: { index: number; blob: Blob }[] = [];
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
 
-  // 1) 秒传判断：服务端如果已有完整文件，直接跳过上传
-  const check = await fetch('/api/upload/check', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileHash, size: file.size, name: file.name }),
-  }).then((r) => r.json());
-
-  if (check.hit) return 'instant';
-
-  // 2) 查询已完成分片，做断点续传
-  const uploadedParts = new Set<number>(
-    await fetch(`/api/upload/progress?fileHash=${fileHash}`).then((r) => r.json()),
-  );
-
-  const chunks = splitFile(file);
-  for (let i = 0; i < chunks.length; i++) {
-    if (uploadedParts.has(i)) continue;
-
-    const form = new FormData();
-    form.append('fileHash', fileHash);
-    form.append('index', String(i));
-    form.append('chunk', chunks[i]);
-
-    await fetch('/api/upload/chunk', { method: 'POST', body: form });
+  for (let index = 0; index < totalChunks; index++) {
+    const start = index * CHUNK_SIZE;
+    const end = Math.min(file.size, start + CHUNK_SIZE);
+    chunks.push({
+      index,
+      blob: file.slice(start, end),
+    });
   }
 
-  // 3) 合并分片：服务端完成完整性校验后落库
-  await fetch('/api/upload/merge', {
+  return { chunks, totalChunks };
+}
+
+/**
+ * 上传前先向后端查询：
+ * 1. 这个文件是否已经存在（秒传）
+ * 2. 如果没完整上传，哪些 chunk 已经上传过（断点续传）
+ */
+async function prepareUpload(file: File): Promise<{
+  taskId: string;
+  alreadyUploadedChunks: number[];
+  shouldSkip: boolean;
+}> {
+  const fileHash = await createFileHash(file);
+
+  const res = await fetch('/api/upload/prepare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileHash, chunkCount: chunks.length }),
+    body: JSON.stringify({
+      fileName: file.name,
+      fileSize: file.size,
+      fileHash,
+    }),
   });
 
-  return 'done';
+  if (!res.ok) {
+    throw new Error('预检上传任务失败');
+  }
+
+  return res.json();
 }
+
+/**
+ * 上传单个分片。
+ * - 用 FormData 传输，兼容性更好。
+ * - chunkIndex / taskId / fileHash 都要带上，方便服务端做幂等控制。
+ * - 如果同一个分片被重复请求，服务端应该识别为同一条数据，不要重复落库。
+ */
+async function uploadChunk(params: {
+  taskId: string;
+  fileHash: string;
+  fileName: string;
+  chunkIndex: number;
+  totalChunks: number;
+  blob: Blob;
+}) {
+  const formData = new FormData();
+  formData.append('taskId', params.taskId);
+  formData.append('fileHash', params.fileHash);
+  formData.append('fileName', params.fileName);
+  formData.append('chunkIndex', String(params.chunkIndex));
+  formData.append('totalChunks', String(params.totalChunks));
+  formData.append('chunk', params.blob);
+
+  const res = await fetch('/api/upload/chunk', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new Error(`分片 ${params.chunkIndex} 上传失败`);
+  }
+
+  return res.json();
+}
+
+/**
+ * 完成上传，如果后端接 MinIO，这一步常见语义是：
+ * - 通知服务端完成 multipart upload
+ * - 服务端把最终 objectKey / url 写入数据库
+ * - 服务端把任务状态切成 done
+ */
+async function completeUpload(taskId: string) {
+  const res = await fetch('/api/upload/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ taskId }),
+  });
+
+  if (!res.ok) {
+    throw new Error('完成上传失败');
+  }
+
+  return res.json();
+}
+
+/**
+ * 一个最小可理解的上传器类。
+ * - 好管理“任务状态、并发、暂停、恢复”这些上传过程中的状态
+ * - 在 demo 里更容易把逻辑组织清楚
+ * - 实际项目也可以改成 Hook / Zustand store / Redux slice
+ */
+class LargeFileUploader {
+  private task: UploadTask | null = null;
+  private abortController: AbortController | null = null;
+
+  constructor(private readonly onProgress?: (task: UploadTask) => void) {}
+
+  private emit() {
+    if (this.task && this.onProgress) {
+      this.onProgress({ ...this.task, uploadedChunks: [...this.task.uploadedChunks] });
+    }
+  }
+
+  /**
+   * 启动上传。
+   *
+   * 整个流程是：
+   * 1. 计算 hash
+   * 2. 调后端预检
+   * 3. 如果后端说文件已存在，直接秒传成功
+   * 4. 否则拿到已上传分片列表，只传缺失分片
+   * 5. 全部分片完成后通知后端收尾
+   */
+  async start(file: File) {
+    const { chunks, totalChunks } = sliceFile(file);
+
+    this.task = {
+      taskId: '',
+      fileHash: '',
+      fileName: file.name,
+      fileSize: file.size,
+      totalChunks,
+      uploadedChunks: [],
+      status: 'hashing',
+    };
+    this.emit();
+
+    const fileHash = await createFileHash(file);
+    this.task.fileHash = fileHash;
+    this.task.status = 'checking';
+    this.emit();
+
+    const prepared = await prepareUpload(file);
+
+    this.task.taskId = prepared.taskId;
+
+    // 秒传分支：后端发现文件已完整存在，直接返回成功即可。
+    if (prepared.shouldSkip) {
+      this.task.status = 'done';
+      this.task.uploadedChunks = chunks.map((chunk) => chunk.index);
+      this.emit();
+      return;
+    }
+
+    // 断点续传分支：服务端返回已经上传的分片，前端只补传缺失部分。
+    const uploadedSet = new Set(prepared.alreadyUploadedChunks);
+    this.task.uploadedChunks = [...uploadedSet].sort((a, b) => a - b);
+    this.task.status = 'uploading';
+    this.emit();
+
+    const queue = chunks.filter((chunk) => !uploadedSet.has(chunk.index));
+    const running: Promise<void>[] = [];
+
+    const next = async () => {
+      const chunk = queue.shift();
+      if (!chunk || this.task?.status === 'paused') return;
+
+      const promise = uploadChunk({
+        taskId: prepared.taskId,
+        fileHash,
+        fileName: file.name,
+        chunkIndex: chunk.index,
+        totalChunks,
+        blob: chunk.blob,
+      }).then(() => {
+        this.task!.uploadedChunks.push(chunk.index);
+        this.task!.uploadedChunks.sort((a, b) => a - b);
+        this.emit();
+      });
+
+      running.push(promise);
+      promise.finally(() => {
+        const index = running.indexOf(promise);
+        if (index >= 0) running.splice(index, 1);
+      });
+
+      // 并发池：保持 MAX_CONCURRENCY 个任务同时进行
+      if (running.length < MAX_CONCURRENCY) {
+        return next();
+      }
+
+      await Promise.race(running);
+      return next();
+    };
+
+    // 启动并发上传
+    const starters = Array.from({ length: Math.min(MAX_CONCURRENCY, queue.length) }, () => next());
+    await Promise.all(starters);
+    await Promise.all(running);
+
+    // 等所有分片上传完成后，通知后端进行最终收尾
+    await completeUpload(prepared.taskId);
+
+    this.task.status = 'done';
+    this.emit();
+  }
+
+  pause() {
+    this.task = this.task ? { ...this.task, status: 'paused' } : null;
+    this.abortController?.abort();
+    this.emit();
+  }
+
+  resume(file: File) {
+    if (!this.task?.taskId) {
+      throw new Error('没有可恢复的任务');
+    }
+    return this.start(file);
+  }
+}
+
+// 使用示例：
+// const uploader = new LargeFileUploader((task) => setState(task));
+// await uploader.start(file);
 ```
 
-这个 demo 可以拆成 4 层来讲：
+### 后端
+```java
+/**
+ * 后端职责：
+ * 1. 创建上传任务，记录文件指纹、任务状态、总分片数等元信息。
+ * 2. 接收分片并记录“已上传分片”。
+ * 3. 支持秒传：如果文件已经存在，直接返回已完成。
+ * 4. 支持断点续传：前端只传缺失分片。
+ * 5. 完成上传后，把任务状态、文件元信息、MinIO 对象地址落到 MySQL。
+ */
+@RestController
+@RequestMapping("/api/upload")
+@RequiredArgsConstructor
+public class UploadController {
 
-- **文件指纹**：先算 hash，保证“同一个文件”能被准确识别；
-- **秒传**：如果服务端已经有完整文件，就不用再传，提高体验和带宽利用率；
-- **断点续传**：前端先查已经上传过哪些分片，只补传缺失部分；
-- **合并收口**：所有分片上传完后，由服务端统一校验、合并、落库，确保文件完整性。
+    private final UploadTaskService uploadTaskService;
+    private final MinioStorageService minioStorageService;
 
-这里最容易踩坑的地方是：
-- 分片顺序和 index 必须稳定；
-- 断网后重试要能接着传，而不是重新开始；
-- 合并时要校验分片数量、hash、一致性，防止脏数据进入最终文件。
+    /**
+     * 上传前预检：
+     * 1. 根据 fileHash 查询 MySQL，看文件是否已经完整存在（秒传）。
+     * 2. 如果任务存在但未完成，返回已上传分片列表，支持断点续传。
+     * 3. 如果任务不存在，则创建一个新的上传任务记录。
+     */
+    @PostMapping("/prepare")
+    public UploadPrepareResponse prepare(@RequestBody UploadPrepareRequest request) {
+        return uploadTaskService.prepareTask(request);
+    }
 
-如果你要进一步讲得更像真实项目，可以补一句：前端还会配合并发控制、上传进度、失败重试、取消上传、恢复草稿任务等能力。
+    /**
+     * 分片上传接口，用 multipart/form-data 接收文件分片。
+     * 常见做法是：
+     * - 先把分片上传到 MinIO 的临时路径/临时 bucket
+     * - 再在 MySQL 里记录该分片已经成功
+     * - 同一个 taskId + chunkIndex 重复上传时，服务端直接返回幂等成功
+     */
+    @PostMapping(value = "/chunk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public UploadChunkResponse uploadChunk(
+            @RequestParam("taskId") String taskId,
+            @RequestParam("fileHash") String fileHash,
+            @RequestParam("fileName") String fileName,
+            @RequestParam("chunkIndex") Integer chunkIndex,
+            @RequestParam("totalChunks") Integer totalChunks,
+            @RequestPart("chunk") MultipartFile chunk
+    ) {
+        return uploadTaskService.uploadChunk(taskId, fileHash, fileName, chunkIndex, totalChunks, chunk);
+    }
+
+    /**
+     * 完成上传接口。
+     * 1. 校验数据库里是否已经收齐全部分片。
+     * 2. 如果使用 MinIO multipart upload，就在这里完成最终提交。
+     * 3. 把最终 objectKey / url / 文件元信息写入 MySQL。
+     * 4. 更新任务状态为 DONE。
+     */
+    @PostMapping("/complete")
+    public UploadCompleteResponse complete(@RequestBody UploadCompleteRequest request) {
+        return uploadTaskService.completeTask(request.getTaskId());
+    }
+
+    /**
+     * 前端刷新后恢复任务状态：
+     * 通过 taskId 查询当前任务进度、已上传分片列表、对象地址等信息。
+     */
+    @GetMapping("/task/{taskId}")
+    public UploadTaskDetailResponse getTask(@PathVariable String taskId) {
+        return uploadTaskService.getTaskDetail(taskId);
+    }
+}
+
+@Data
+class UploadPrepareRequest {
+    private String fileName;
+    private Long fileSize;
+    private String fileHash;
+}
+
+@Data
+class UploadPrepareResponse {
+    private String taskId;
+    private boolean shouldSkip;
+    private List<Integer> alreadyUploadedChunks;
+}
+
+@Data
+class UploadChunkResponse {
+    private boolean ok;
+    private String message;
+    private List<Integer> uploadedChunks;
+}
+
+@Data
+class UploadCompleteRequest {
+    private String taskId;
+}
+
+@Data
+class UploadCompleteResponse {
+    private String taskId;
+    private String status;
+    private String objectKey;
+}
+
+@Data
+class UploadTaskDetailResponse {
+    private String taskId;
+    private String fileName;
+    private Long fileSize;
+    private String fileHash;
+    private String status;
+    private List<Integer> uploadedChunks;
+    private String objectKey;
+    private LocalDateTime updatedAt;
+}
+
+/**
+ * 上传任务服务
+ * - upload_task：记录文件的整体任务
+ * - upload_chunk：记录每个分片的上传状态
+ * - file_asset：记录最终文件元信息和 MinIO 地址
+ */
+@Service
+@RequiredArgsConstructor
+class UploadTaskService {
+
+    private final UploadTaskRepository uploadTaskRepository;
+    private final UploadChunkRepository uploadChunkRepository;
+    private final FileAssetRepository fileAssetRepository;
+    private final MinioStorageService minioStorageService;
+
+    public UploadPrepareResponse prepareTask(UploadPrepareRequest request) {
+        // 1. 先查 MySQL 中是否存在相同 fileHash 且已完成的文件。
+        //    如果存在，直接秒传。
+        Optional<FileAssetEntity> existedAsset = fileAssetRepository.findByFileHash(request.getFileHash());
+        if (existedAsset.isPresent()) {
+            FileAssetEntity asset = existedAsset.get();
+            UploadPrepareResponse response = new UploadPrepareResponse();
+            response.setTaskId(asset.getTaskId());
+            response.setShouldSkip(true);
+            response.setAlreadyUploadedChunks(Collections.emptyList());
+            return response;
+        }
+
+        // 2. 如果有未完成任务，复用该任务，返回已上传分片列表。
+        Optional<UploadTaskEntity> existedTask = uploadTaskRepository.findByFileHash(request.getFileHash());
+        if (existedTask.isPresent() && !"DONE".equals(existedTask.get().getStatus())) {
+            UploadTaskEntity task = existedTask.get();
+            UploadPrepareResponse response = new UploadPrepareResponse();
+            response.setTaskId(task.getTaskId());
+            response.setShouldSkip(false);
+            response.setAlreadyUploadedChunks(uploadChunkRepository.findUploadedChunkIndexes(task.getTaskId()));
+            return response;
+        }
+
+        // 3. 创建新任务，写入 MySQL。
+        String taskId = UUID.randomUUID().toString().replace("-", "");
+        UploadTaskEntity task = new UploadTaskEntity();
+        task.setTaskId(taskId);
+        task.setFileName(request.getFileName());
+        task.setFileSize(request.getFileSize());
+        task.setFileHash(request.getFileHash());
+        task.setStatus("PENDING");
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+        uploadTaskRepository.save(task);
+
+        UploadPrepareResponse response = new UploadPrepareResponse();
+        response.setTaskId(taskId);
+        response.setShouldSkip(false);
+        response.setAlreadyUploadedChunks(Collections.emptyList());
+        return response;
+    }
+
+    public UploadChunkResponse uploadChunk(String taskId, String fileHash, String fileName, Integer chunkIndex, Integer totalChunks, MultipartFile chunk) {
+        // 1. 查任务是否存在，防止非法上传。
+        UploadTaskEntity task = uploadTaskRepository.findByTaskId(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("task not found"));
+
+        // 2. 幂等判断：同一个 taskId + chunkIndex 重复上传时，直接按“已成功”处理。
+        Optional<UploadChunkEntity> existed = uploadChunkRepository.findByTaskIdAndChunkIndex(taskId, chunkIndex);
+        if (existed.isPresent()) {
+            UploadChunkResponse response = new UploadChunkResponse();
+            response.setOk(true);
+            response.setMessage("chunk already exists");
+            response.setUploadedChunks(uploadChunkRepository.findUploadedChunkIndexes(taskId));
+            return response;
+        }
+
+        // 3. 把分片传到 MinIO。
+        //    这里可以上传到临时 bucket 或临时目录，等全部分片完成后再完成最终对象组装。
+        String chunkObjectKey = minioStorageService.uploadChunk(taskId, chunkIndex, chunk);
+
+        // 4. 写入分片表，MySQL 记录这个 chunk 已成功。
+        UploadChunkEntity chunkEntity = new UploadChunkEntity();
+        chunkEntity.setTaskId(taskId);
+        chunkEntity.setChunkIndex(chunkIndex);
+        chunkEntity.setTotalChunks(totalChunks);
+        chunkEntity.setChunkObjectKey(chunkObjectKey);
+        chunkEntity.setChunkSize(chunk.getSize());
+        chunkEntity.setCreatedAt(LocalDateTime.now());
+        uploadChunkRepository.save(chunkEntity);
+
+        // 5. 更新任务状态。
+        task.setStatus("UPLOADING");
+        task.setUpdatedAt(LocalDateTime.now());
+        uploadTaskRepository.save(task);
+
+        UploadChunkResponse response = new UploadChunkResponse();
+        response.setOk(true);
+        response.setMessage("chunk uploaded");
+        response.setUploadedChunks(uploadChunkRepository.findUploadedChunkIndexes(taskId));
+        return response;
+    }
+
+    public UploadCompleteResponse completeTask(String taskId) {
+        UploadTaskEntity task = uploadTaskRepository.findByTaskId(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("task not found"));
+
+        List<UploadChunkEntity> chunks = uploadChunkRepository.findAllByTaskIdOrderByChunkIndex(taskId);
+        if (chunks.isEmpty()) {
+            throw new IllegalStateException("no chunks uploaded");
+        }
+
+        // 1. 校验是否收齐全部分片。
+        if (!uploadChunkRepository.isTaskComplete(taskId)) {
+            throw new IllegalStateException("chunks not complete");
+        }
+
+        // 2. 在 MinIO 中完成最终对象生成。
+        //    如果使用 multipart upload，这一步就是 complete multipart upload。
+        String objectKey = minioStorageService.completeMultipartUpload(taskId, task.getFileName(), chunks);
+
+        // 3. 写入最终文件元信息表。
+        FileAssetEntity asset = new FileAssetEntity();
+        asset.setTaskId(taskId);
+        asset.setFileName(task.getFileName());
+        asset.setFileSize(task.getFileSize());
+        asset.setFileHash(task.getFileHash());
+        asset.setObjectKey(objectKey);
+        asset.setStatus("READY");
+        asset.setCreatedAt(LocalDateTime.now());
+        fileAssetRepository.save(asset);
+
+        // 4. 更新任务状态为完成。
+        task.setStatus("DONE");
+        task.setUpdatedAt(LocalDateTime.now());
+        uploadTaskRepository.save(task);
+
+        UploadCompleteResponse response = new UploadCompleteResponse();
+        response.setTaskId(taskId);
+        response.setStatus("DONE");
+        response.setObjectKey(objectKey);
+        return response;
+    }
+
+    public UploadTaskDetailResponse getTaskDetail(String taskId) {
+        UploadTaskEntity task = uploadTaskRepository.findByTaskId(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("task not found"));
+
+        UploadTaskDetailResponse response = new UploadTaskDetailResponse();
+        response.setTaskId(task.getTaskId());
+        response.setFileName(task.getFileName());
+        response.setFileSize(task.getFileSize());
+        response.setFileHash(task.getFileHash());
+        response.setStatus(task.getStatus());
+        response.setUploadedChunks(uploadChunkRepository.findUploadedChunkIndexes(taskId));
+        response.setObjectKey(fileAssetRepository.findByTaskId(taskId).map(FileAssetEntity::getObjectKey).orElse(null));
+        response.setUpdatedAt(task.getUpdatedAt());
+        return response;
+    }
+}
+
+/**
+ * MinIO 存储服务。
+ *
+ * 这里不展开具体 SDK 代码，但要体现出：
+ * - 上传分片到 MinIO
+ * - 最后完成 multipart upload
+ * - 返回最终 objectKey
+ */
+@Service
+class MinioStorageService {
+
+    @Value("${minio.bucket}")
+    private String bucket;
+
+    public String uploadChunk(String taskId, Integer chunkIndex, MultipartFile chunk) {
+        // 真实实现里：调用 MinIO SDK，把分片对象上传到临时位置。
+        // 例如：bucket/tasks/{taskId}/chunks/{chunkIndex}
+        return bucket + "/tasks/" + taskId + "/chunks/" + chunkIndex;
+    }
+
+    public String completeMultipartUpload(String taskId, String fileName, List<UploadChunkEntity> chunks) {
+        // 真实实现里：根据 chunks 的顺序，调用 MinIO multipart complete。
+        // 返回最终对象 key，比如：bucket/files/{taskId}/{fileName}
+        return bucket + "/files/" + taskId + "/" + fileName;
+    }
+}
+
+/**
+ * 下面是 MySQL 对应的实体和仓储接口。
+ * 真实项目里一般会配合 JPA / MyBatis / MyBatis-Plus 使用。
+ */
+
+@Data
+class UploadTaskEntity {
+    private Long id;
+    private String taskId;
+    private String fileName;
+    private Long fileSize;
+    private String fileHash;
+    private String status;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+}
+
+@Data
+class UploadChunkEntity {
+    private Long id;
+    private String taskId;
+    private Integer chunkIndex;
+    private Integer totalChunks;
+    private String chunkObjectKey;
+    private Long chunkSize;
+    private LocalDateTime createdAt;
+}
+
+@Data
+class FileAssetEntity {
+    private Long id;
+    private String taskId;
+    private String fileName;
+    private Long fileSize;
+    private String fileHash;
+    private String objectKey;
+    private String status;
+    private LocalDateTime createdAt;
+}
+
+@Repository
+interface UploadTaskRepository {
+    Optional<UploadTaskEntity> findByFileHash(String fileHash);
+    Optional<UploadTaskEntity> findByTaskId(String taskId);
+    UploadTaskEntity save(UploadTaskEntity entity);
+}
+
+@Repository
+interface UploadChunkRepository {
+    Optional<UploadChunkEntity> findByTaskIdAndChunkIndex(String taskId, Integer chunkIndex);
+    List<Integer> findUploadedChunkIndexes(String taskId);
+    List<UploadChunkEntity> findAllByTaskIdOrderByChunkIndex(String taskId);
+    boolean isTaskComplete(String taskId);
+    UploadChunkEntity save(UploadChunkEntity entity);
+}
+
+@Repository
+interface FileAssetRepository {
+    Optional<FileAssetEntity> findByFileHash(String fileHash);
+    Optional<FileAssetEntity> findByTaskId(String taskId);
+    FileAssetEntity save(FileAssetEntity entity);
+}
+```
 
 ## 3. SSE 流式问答（fetch + ReadableStream + 逐 token 渲染）
 
