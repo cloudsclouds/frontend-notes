@@ -3024,6 +3024,265 @@ public class KnowledgeRerankServiceImpl implements KnowledgeRerankService {
 ```
 
 ### 来源回填
+```java
+@Service
+@RequiredArgsConstructor
+public class SourceBackfillService {
 
+  public String backfill(String answer, List<KnowledgeChunkSearchResponse> chunks) {
+    if (!org.springframework.util.StringUtils.hasText(answer) || chunks == null || chunks.isEmpty()) {
+      return answer;
+    }
+
+    Map<String, Integer> citationMap = buildCitationMap(chunks);
+    String enriched = appendCitationMarkers(answer, citationMap);
+    return appendReferences(enriched, chunks, citationMap);
+  }
+
+  private Map<String, Integer> buildCitationMap(List<KnowledgeChunkSearchResponse> chunks) {
+    Map<String, Integer> citationMap = new LinkedHashMap<>();
+    int index = 1;
+    for (KnowledgeChunkSearchResponse chunk : chunks) {
+      if (chunk == null || chunk.getChunkId() == null) {
+        continue;
+      }
+      String key = String.valueOf(chunk.getChunkId());
+      if (!citationMap.containsKey(key)) {
+        citationMap.put(key, index++);
+      }
+    }
+    return citationMap;
+  }
+
+  private String appendCitationMarkers(String answer, Map<String, Integer> citationMap) {
+    String result = answer;
+    for (Map.Entry<String, Integer> entry : citationMap.entrySet()) {
+      // 这里可结合句子级对齐结果，把每个结论句后面补上对应引用编号。
+      result = result.replace("{{cite_" + entry.getKey() + "}}", "[" + entry.getValue() + "]");
+    }
+    return result;
+  }
+
+  private String appendReferences(String answer, List<KnowledgeChunkSearchResponse> chunks, Map<String, Integer> citationMap) {
+    StringBuilder builder = new StringBuilder(answer).append("\n\n参考来源\n");
+    for (KnowledgeChunkSearchResponse chunk : chunks) {
+      if (chunk == null || chunk.getChunkId() == null) {
+        continue;
+      }
+      Integer citationId = citationMap.get(String.valueOf(chunk.getChunkId()));
+      if (citationId == null) {
+        continue;
+      }
+      builder.append('[').append(citationId).append("] ")
+          .append(chunk.getChunkTitle() == null ? "未命名分片" : chunk.getChunkTitle())
+          .append(" / chunkId=").append(chunk.getChunkId());
+      if (org.springframework.util.StringUtils.hasText(chunk.getChunkSummary())) {
+        builder.append(" / ").append(chunk.getChunkSummary());
+      }
+      builder.append('\n');
+    }
+    return builder.toString();
+  }
+}
+```
 
 ## 6. 文档内 AI 辅助创作（多智能体编排 + Reflection Loop）
+```java
+@Service
+@RequiredArgsConstructor
+public class AiWritingOrchestratorService {
+
+  private final ComplexityScorer complexityScorer;
+  private final PlannerAgent plannerAgent;
+  private final WorkerAgent workerAgent;
+  private final CriticAgent criticAgent;
+  private final MergerAgent mergerAgent;
+
+  public AiWritingResult handle(AiWritingRequest request) {
+    if (request == null || !org.springframework.util.StringUtils.hasText(request.getContent())) {
+      return AiWritingResult.empty();
+    }
+
+    int complexity = complexityScorer.score(request);
+    if (complexity <= 3) {
+      // 低复杂度任务直接走 Fast 通道，减少编排和调度开销。
+      String fastResult = workerAgent.execute(request);
+      return AiWritingResult.success(fastResult, "FAST");
+    }
+
+    List<TaskNode> taskDAG = plannerAgent.plan(request);
+    SharedWorkspace workspace = new SharedWorkspace();
+
+    for (TaskNode node : taskDAG) {
+      String partial = workerAgent.execute(node, workspace);
+      workspace.put(node.getTaskId(), partial);
+    }
+
+    String merged = mergerAgent.merge(workspace);
+    String reflected = reflectUntilPass(request, merged, workspace);
+    return AiWritingResult.success(reflected, "SWARM");
+  }
+
+  private String reflectUntilPass(AiWritingRequest request, String draft, SharedWorkspace workspace) {
+    String current = draft;
+    int maxRounds = determineMaxRounds(request);
+    for (int round = 0; round < maxRounds; round++) {
+      CriticResult criticResult = criticAgent.review(request, current, workspace);
+      if (criticResult.isPass()) {
+        return current;
+      }
+      current = workerAgent.revise(request, current, criticResult.getIssues(), workspace);
+    }
+    // 达到阈值后停止反思，避免无效循环。
+    return current;
+  }
+
+  private int determineMaxRounds(AiWritingRequest request) {
+    if (request.getTaskType() == AiWritingTaskType.MERMAID) {
+      return 3;
+    }
+    if (request.getTaskType() == AiWritingTaskType.SUMMARY) {
+      return 2;
+    }
+    return 1;
+  }
+}
+```
+
+### 核心支撑对象
+```java
+/**
+ * 复杂度打分器：先判断任务适不适合走 Fast，避免所有请求都进入多智能体编排。
+ */
+public interface ComplexityScorer {
+  int score(AiWritingRequest request);
+}
+
+/**
+ * 规划器：把复杂任务拆成多个可并行执行的子任务，形成任务 DAG。
+ */
+public interface PlannerAgent {
+  List<TaskNode> plan(AiWritingRequest request);
+}
+
+/**
+ * Worker：负责执行翻译、润色、总结、Mermaid 生成等具体子任务。
+ */
+public interface WorkerAgent {
+  String execute(AiWritingRequest request);
+  String execute(TaskNode node, SharedWorkspace workspace);
+  String revise(AiWritingRequest request, String draft, List<String> issues, SharedWorkspace workspace);
+}
+
+/**
+ * Critic：负责检查内容是否偏题、格式是否正确、引用是否合法。
+ */
+public interface CriticAgent {
+  CriticResult review(AiWritingRequest request, String draft, SharedWorkspace workspace);
+}
+
+/**
+ * Merger：负责把多个 Worker 的中间结果聚合成最终可交付内容。
+ */
+public interface MergerAgent {
+  String merge(SharedWorkspace workspace);
+}
+
+/**
+ * 共享工作区：所有 Agent 都从这里读写中间结果，避免重复理解全文。
+ */
+public class SharedWorkspace {
+  private final Map<String, String> data = new LinkedHashMap<>();
+
+  public void put(String key, String value) {
+    if (org.springframework.util.StringUtils.hasText(key)) {
+      data.put(key, value == null ? "" : value);
+    }
+  }
+
+  public String get(String key) {
+    return data.get(key);
+  }
+
+  public Map<String, String> snapshot() {
+    return Collections.unmodifiableMap(data);
+  }
+}
+
+/**
+ * 请求协议：前端不只需要文本，还需要知道替换、插入还是生成 Mermaid。
+ */
+public class AiWritingResult {
+  private final String content;
+  private final String mode;
+
+  private AiWritingResult(String content, String mode) {
+    this.content = content;
+    this.mode = mode;
+  }
+
+  public static AiWritingResult empty() {
+    return new AiWritingResult("", "EMPTY");
+  }
+
+  public static AiWritingResult success(String content, String mode) {
+    return new AiWritingResult(content, mode);
+  }
+
+  public String getContent() {
+    return content;
+  }
+
+  public String getMode() {
+    return mode;
+  }
+}
+
+/**
+ * 任务节点：用于描述子任务、依赖关系和目标类型。
+ */
+public class TaskNode {
+  private String taskId;
+  private String prompt;
+  private AiWritingTaskType taskType;
+}
+
+/**
+ * 反思结果：Critic 告诉 Worker 哪些地方需要修正。
+ */
+public class CriticResult {
+  private boolean pass;
+  private List<String> issues;
+
+  public boolean isPass() {
+    return pass;
+  }
+
+  public List<String> getIssues() {
+    return issues == null ? List.of() : issues;
+  }
+}
+
+public enum AiWritingTaskType {
+  TRANSLATE,
+  POLISH,
+  SUMMARY,
+  MERMAID,
+  REWRITE
+}
+
+public class AiWritingRequest {
+  private String content;
+  private String title;
+  private AiWritingTaskType taskType;
+  private boolean needKnowledgeBase;
+
+  public String getContent() {
+    return content;
+  }
+
+  public AiWritingTaskType getTaskType() {
+    return taskType;
+  }
+}
+```
