@@ -2604,4 +2604,426 @@ public class EditorAiServiceImpl implements EditorAiService {
 
 ## 5. RAG 检索增强问答（BM25 + 向量混合召回 + 重排 + 来源回填）
 
+### 入库流程
+```java
+@Override
+public ApiResponse<Map<String, Object>> ingestArticle(Long articleId, Long userId) {
+  // 1. 先校验文章归属，避免用户把别人的文章重新入库。
+  KnowledgeArticle article = articleMapper.selectById(articleId);
+  if (article == null || !Objects.equals(article.getUserId(), userId)) {
+    return ApiResponse.error("文章不存在或无权操作");
+  }
+
+  // 2. 重新入库前先清理旧 chunk，确保同一文章只保留一份最新切块结果。
+  chunkMapper.deleteByArticleId(articleId);
+  List<ArticleChunkPiece> pieces = splitContent(article.getContent());
+  List<String> embeddingIds = new ArrayList<>();
+
+  // 3. 将文章按语义/结构切分为多个 chunk，并为每个 chunk 生成稳定的 embeddingId。
+  for (int i = 0; i < pieces.size(); i++) {
+    ArticleChunkPiece piece = pieces.get(i);
+    String embeddingId = buildEmbeddingId(articleId, i, piece.text());
+    KnowledgeArticleChunk chunk = new KnowledgeArticleChunk();
+    chunk.setArticleId(articleId);
+    chunk.setChunkIndex(i + 1);
+    chunk.setChunkText(piece.text());
+    chunk.setChunkSummary(piece.summary());
+    chunk.setEmbeddingId(embeddingId);
+    chunk.setCreatedAt(LocalDateTime.now());
+    chunkMapper.insert(chunk);
+    // 4. 同步把 chunk 的向量、元数据写入 Redis，供后续召回和排序直接使用。
+    persistVector(articleId, embeddingId, piece.text(), chunk);
+    embeddingIds.add(embeddingId);
+  }
+
+  // 5. 返回入库统计信息，便于前端或调用方展示结果。
+  Map<String, Object> data = new HashMap<>();
+  data.put("articleId", articleId);
+  data.put("chunkCount", pieces.size());
+  data.put("embeddingIds", embeddingIds);
+  return ApiResponse.success("入库成功", data);
+}
+
+private String buildEmbeddingId(Long articleId, int index, String chunkText) {
+  return articleId + "-" + (index + 1) + "-" + hash(chunkText);
+}
+
+private String hash(String text) {
+  try {
+    MessageDigest digest = MessageDigest.getInstance("SHA-256");
+    byte[] hashed = digest.digest(text.getBytes(StandardCharsets.UTF_8));
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(hashed).substring(0, 16);
+  } catch (Exception ex) {
+    return Integer.toHexString(text.hashCode());
+  }
+}
+```
+
+### 检索主流程
+```java
+@Override
+public ApiResponse<List<KnowledgeChunkSearchResponse>> searchChunksAdvanced(Long userId, String query, Long articleId, Integer topK, boolean useDiagnostics) {
+  // 统一处理 topK 默认值，避免调用方传入 null 或非正数时引发异常。
+  int limit = topK == null || topK <= 0 ? DEFAULT_TOP_K : topK;
+  if (!StringUtils.hasText(query)) {
+    return ApiResponse.error("query 不能为空");
+  }
+
+  // 先解析可检索的文章范围：指定文章时只查单篇，否则查当前用户的全部可见文章。
+  List<Long> targetArticleIds = resolveTargetArticleIds(userId, articleId);
+  if (targetArticleIds.isEmpty()) {
+    log.info("RAG search no target articles, userId={}, articleId={}, query={}", userId, articleId, query);
+    return ApiResponse.success("查询成功", List.of());
+  }
+
+  // 召回阶段同时使用向量、关键词和 BM25，尽量扩大候选集合。
+  List<KnowledgeChunkSearchResponse> result = new ArrayList<>();
+  for (Long targetArticleId : targetArticleIds) {
+    result.addAll(searchByArticle(targetArticleId, query, limit));
+    result.addAll(bm25Service.search(query, targetArticleId, userId, Math.max(limit, RE_RANK_TOP_K)));
+  }
+
+  // 去重、冲突消解、过滤低分候选后，再进行最终重排。
+  result = conflictResolver.resolve(query, deduplicateByChunkId(result));
+  result.removeIf(item -> item.getScore() == null || item.getScore() < MIN_RELEVANCE_SCORE);
+  result.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+  List<KnowledgeChunkSearchResponse> reranked = rerankService.rerank(query, result, RE_RANK_FINAL_TOP_K);
+  return ApiResponse.success("查询成功", reranked.stream().limit(limit).toList());
+}
+```
+
+#### 单篇文章内的混合召回
+```java
+private List<KnowledgeChunkSearchResponse> searchByArticle(Long articleId, String query, int limit) {
+  // 先扩大召回范围，再通过后续重排压缩结果，提升召回率。
+  int recallLimit = Math.max(limit, limit * HYBRID_RECALL_MULTIPLIER);
+  List<String> vectorCandidates = searchVectorKeys(articleId, query, recallLimit);
+  List<String> keywordCandidates = searchKeywordKeys(articleId, query, recallLimit);
+  List<String> merged = mergeCandidates(vectorCandidates, keywordCandidates);
+  List<KnowledgeChunkSearchResponse> result = new ArrayList<>();
+  for (String key : merged) {
+    String id = key.substring(RAG_VECTOR_KEY_PREFIX.length());
+    KnowledgeArticleChunk chunk = chunkMapper.selectByEmbeddingId(id);
+    if (chunk == null || !Objects.equals(chunk.getArticleId(), articleId)) {
+      continue;
+    }
+    double vectorScore = similarity(query, chunk.getChunkText());
+    double keywordScore = keywordScore(query, chunk.getChunkText());
+    double hybridScore = VECTOR_WEIGHT * vectorScore + KEYWORD_WEIGHT * keywordScore;
+    result.add(new KnowledgeChunkSearchResponse(
+        chunk.getId(),
+        chunk.getArticleId(),
+        chunk.getChunkIndex(),
+        chunk.getChunkText(),
+        chunk.getChunkSummary(),
+        chunk.getEmbeddingId(),
+        hybridScore));
+  }
+  return result;
+}
+```
+
+#### 标准 BM25 检索
+```java
+@Service
+@RequiredArgsConstructor
+public class KnowledgeBM25ServiceImpl implements KnowledgeBM25Service {
+  // BM25 的核心参数：K1 控制词频增长的饱和速度，数值越大，词频对结果的影响越明显。
+  private static final double K1 = 1.2d;
+  
+  // BM25 的核心参数：B 用于调节文档长度归一化的强度，越接近 1 越强调长文档惩罚。
+  private static final double B = 0.75d;
+  
+  // 分词后的最小有效长度，过滤掉过短、噪声较大的 token。
+  private static final int MIN_TOKEN_LENGTH = 2;
+
+  private final KnowledgeArticleMapper articleMapper;
+  private final KnowledgeArticleChunkMapper chunkMapper;
+
+  @Override
+  public List<KnowledgeChunkSearchResponse> search(String query, Long articleId, Long userId, int limit) {
+    // 查询内容为空或返回数量非法时，直接返回空结果。
+    if (!StringUtils.hasText(query) || limit <= 0) {
+      return List.of();
+    }
+
+    // 先解析本次检索需要限定到哪些文章范围：指定 articleId 时，只查这篇文章；未指定时，默认查当前用户下的所有未删除文章。
+    List<Long> targetArticleIds = resolveTargetArticleIds(articleId, userId);
+    if (targetArticleIds.isEmpty()) {
+      return List.of();
+    }
+
+    // 按文章拉取 chunk，并合并成一个候选集合。
+    List<KnowledgeArticleChunk> chunks = new ArrayList<>();
+    for (Long targetArticleId : targetArticleIds) {
+      List<KnowledgeArticleChunk> articleChunks = chunkMapper.selectByArticleIdOrderByChunkIndex(targetArticleId);
+      if (articleChunks != null) {
+        chunks.addAll(articleChunks);
+      }
+    }
+    if (chunks.isEmpty()) {
+      return List.of();
+    }
+
+    // 将用户查询标准化为 token 列表，后续只对这些关键词进行 BM25 计算。
+    List<String> queryTokens = tokenize(query);
+    if (queryTokens.isEmpty()) {
+      return List.of();
+    }
+
+    // 统计每个 token 的文档频次（document frequency），以及每个 chunk 的长度，
+    // 这些都是 BM25 公式计算所需的基础数据。
+    Map<String, Integer> docFreq = new HashMap<>();
+    Map<Long, Integer> docLength = new HashMap<>();
+    int totalLength = 0;
+    for (KnowledgeArticleChunk chunk : chunks) {
+      String text = fullText(chunk);
+      List<String> tokens = tokenize(text);
+      docLength.put(chunk.getId(), tokens.size());
+      totalLength += tokens.size();
+
+      // 一个 chunk 中同一个 token 只需要计入一次文档频次，因此这里先去重再累加。
+      LinkedHashSet<String> uniqueTokens = new LinkedHashSet<>(tokens);
+      for (String token : uniqueTokens) {
+        docFreq.merge(token, 1, Integer::sum);
+      }
+    }
+
+    // 计算所有候选 chunk 的平均长度，供 BM25 做长度归一化。
+    double avgDocLength = chunks.isEmpty() ? 0d : (double) totalLength / (double) chunks.size();
+    List<KnowledgeChunkSearchResponse> results = new ArrayList<>();
+    for (KnowledgeArticleChunk chunk : chunks) {
+      String text = fullText(chunk);
+
+      // 对每个 chunk 逐个计算 BM25 分数，分数越高表示与查询越相关。
+      double score = bm25(queryTokens, text, chunks.size(), avgDocLength, docFreq, docLength.getOrDefault(chunk.getId(), 0));
+      results.add(new KnowledgeChunkSearchResponse(
+          chunk.getId(),
+          chunk.getArticleId(),
+          chunk.getChunkIndex(),
+          chunk.getChunkText(),
+          chunk.getChunkSummary(),
+          chunk.getEmbeddingId(),
+          score));
+    }
+
+    // BM25 只保留有意义的匹配结果，避免返回 0 分噪声项。
+    results.removeIf(item -> item.getScore() == null || item.getScore() <= 0d);
+    // 按相关性分数从高到低排序，方便上层直接取前 N 条。
+    results.sort(Comparator.comparingDouble(KnowledgeChunkSearchResponse::getScore).reversed());
+    return results.stream().limit(limit).toList();
+  }
+
+  /**
+   * 解析检索目标文章 ID。
+   *
+   * 优先级：
+   * 1. 传入 articleId 时，仅允许当前用户访问该文章；
+   * 2. 未传入 articleId 时，查询当前用户下的全部可检索文章。
+   */
+  private List<Long> resolveTargetArticleIds(Long articleId, Long userId) {
+    if (articleId != null) {
+      KnowledgeArticle article = articleMapper.selectById(articleId);
+      // 文章不存在、归属不匹配、或文章处于删除/禁用状态时，都不允许继续检索。
+      if (article == null || !Objects.equals(article.getUserId(), userId) || Objects.equals(article.getStatus(), 1)) {
+        return List.of();
+      }
+      return List.of(articleId);
+    }
+
+    // 未指定文章时，返回当前用户所有未删除文章的 ID。
+    return articleMapper.selectByUserId(userId).stream()
+        .filter(article -> !Objects.equals(article.getStatus(), 1))
+        .map(KnowledgeArticle::getId)
+        .toList();
+  }
+
+  /**
+   * 计算单个 chunk 相对于查询词的 BM25 相关性得分。
+   *
+   * 这里使用的是标准 BM25 公式：
+   * - tf：词项在当前 chunk 中出现的频率；
+   * - df：词项在全部候选 chunk 中出现的文档数；
+   * - docLength：当前 chunk 的长度；
+   * - avgDocLength：候选 chunk 的平均长度。
+   */
+  private double bm25(List<String> queryTokens, String text, int docCount, double avgDocLength, Map<String, Integer> docFreq, int docLength) {
+    if (!StringUtils.hasText(text) || docCount <= 0 || avgDocLength <= 0d) {
+      return 0d;
+    }
+
+    // 统计当前 chunk 内每个 token 的出现次数，后续直接按词频累加 BM25 分数。
+    List<String> docTokens = tokenize(text);
+    Map<String, Integer> termFreq = new HashMap<>();
+    for (String token : docTokens) {
+      termFreq.merge(token, 1, Integer::sum);
+    }
+
+    double score = 0d;
+    for (String token : queryTokens) {
+      Integer tf = termFreq.get(token);
+      Integer df = docFreq.get(token);
+      if (tf == null || df == null || df <= 0) {
+        continue;
+      }
+
+      // idf 越大，说明该词越“稀有”，对区分结果的贡献越高。
+      double idf = Math.log(1d + ((docCount - df + 0.5d) / (df + 0.5d)));
+      double numerator = tf * (K1 + 1d);
+      // 长文本会被适当归一化，避免仅凭内容更长就天然获得更高分。
+      double denominator = tf + K1 * (1d - B + B * (docLength / avgDocLength));
+      score += idf * (numerator / denominator);
+    }
+    return score;
+  }
+
+  /**
+   * 将输入文本标准化为 token 列表。
+   *
+   * 处理流程：
+   * 1. 全部转小写，统一英文大小写差异；
+   * 2. 将非字母数字字符替换为空格；
+   * 3. 按空白切分；
+   * 4. 过滤过短 token，减少噪声。
+   */
+  private List<String> tokenize(String value) {
+    if (!StringUtils.hasText(value)) {
+      return List.of();
+    }
+    String normalized = value.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+    if (!StringUtils.hasText(normalized)) {
+      return List.of();
+    }
+    String[] parts = normalized.split("\\s+");
+    List<String> tokens = new ArrayList<>();
+    for (String part : parts) {
+      if (part.length() >= MIN_TOKEN_LENGTH) {
+        tokens.add(part);
+      }
+    }
+    return tokens;
+  }
+
+  /**
+   * 拼接 chunk 的可检索正文。
+   *
+   * 这里优先把摘要和正文一起参与 BM25 评分，
+   * 这样即使正文较长，也能利用摘要提升召回效果。
+   */
+  private String fullText(KnowledgeArticleChunk chunk) {
+    if (chunk == null) {
+      return "";
+    }
+    return (StringUtils.hasText(chunk.getChunkSummary()) ? chunk.getChunkSummary() + " " : "") + (chunk.getChunkText() == null ? "" : chunk.getChunkText());
+  }
+}
+```
+
+### 消除冲突
+```java
+@Service
+@RequiredArgsConstructor
+public class KnowledgeConflictResolverImpl implements KnowledgeConflictResolver {
+  @Override
+  public List<KnowledgeChunkSearchResponse> resolve(String query, List<KnowledgeChunkSearchResponse> candidates) {
+    // 没有候选片段时，直接返回空列表，避免后续去重逻辑执行无效遍历。
+    if (candidates == null || candidates.isEmpty()) {
+      return List.of();
+    }
+    Map<Long, KnowledgeChunkSearchResponse> bestByChunkId = new HashMap<>();
+    for (KnowledgeChunkSearchResponse candidate : candidates) {
+      if (candidate == null || candidate.getChunkId() == null) {
+        continue;
+      }
+      // 同一个 chunk 可能来自多个召回源，保留综合分更高的那个版本。
+      KnowledgeChunkSearchResponse existing = bestByChunkId.get(candidate.getChunkId());
+      if (existing == null || compareCandidate(query, candidate, existing) > 0) {
+        bestByChunkId.put(candidate.getChunkId(), candidate);
+      }
+    }
+    return new ArrayList<>(bestByChunkId.values()).stream()
+        // 去重后按原始召回分数排序，保证输出结果仍然稳定可解释。
+        .sorted(Comparator.comparingDouble((KnowledgeChunkSearchResponse item) -> item.getScore() == null ? 0d : item.getScore()).reversed())
+        .toList();
+  }
+
+  private int compareCandidate(String query, KnowledgeChunkSearchResponse left, KnowledgeChunkSearchResponse right) {
+    double leftScore = adjustedScore(query, left);
+    double rightScore = adjustedScore(query, right);
+    return Double.compare(leftScore, rightScore);
+  }
+
+  private double adjustedScore(String query, KnowledgeChunkSearchResponse candidate) {
+    // 冲突消解时优先使用基础分，再叠加摘要与问题的轻量文本重合度。
+    double base = candidate.getScore() == null ? 0d : candidate.getScore();
+    double summaryBoost = StringUtils.hasText(candidate.getChunkSummary()) && StringUtils.hasText(query)
+        ? overlap(query, candidate.getChunkSummary()) * 0.05d
+        : 0d;
+    return base + summaryBoost;
+  }
+
+  private double overlap(String query, String text) {
+    if (!StringUtils.hasText(query) || !StringUtils.hasText(text)) {
+      return 0d;
+    }
+    String[] queryParts = query.toLowerCase().split("\\s+");
+    int hit = 0;
+    for (String part : queryParts) {
+      // 同样过滤过短 token，降低噪声词导致的误判。
+      if (part.length() >= 2 && text.toLowerCase().contains(part)) {
+        hit++;
+      }
+    }
+    return queryParts.length == 0 ? 0d : (double) hit / (double) queryParts.length;
+  }
+}
+```
+
+### 重排
+```java
+@Service
+@RequiredArgsConstructor
+public class KnowledgeRerankServiceImpl implements KnowledgeRerankService {
+  @Override
+  public List<KnowledgeChunkSearchResponse> rerank(String query, List<KnowledgeChunkSearchResponse> candidates, int limit) {
+    // 候选集为空或无需返回时，直接给出空结果，避免后续排序和打分开销。
+    if (candidates == null || candidates.isEmpty() || limit <= 0) {
+      return List.of();
+    }
+    List<KnowledgeChunkSearchResponse> sorted = new ArrayList<>(candidates);
+    // 按综合得分从高到低排序，保留更适合大模型上下文的证据片段。
+    sorted.sort(Comparator.comparingDouble((KnowledgeChunkSearchResponse item) -> score(query, item)).reversed());
+    return sorted.stream().limit(limit).toList();
+  }
+
+  private double score(String query, KnowledgeChunkSearchResponse chunk) {
+    // 基础分来自召回阶段，文本和摘要命中用于补充重排权重。
+    double base = chunk.getScore() == null ? 0d : chunk.getScore();
+    double textScore = StringUtils.hasText(chunk.getChunkText()) ? lexical(query, chunk.getChunkText()) : 0d;
+    double summaryScore = StringUtils.hasText(chunk.getChunkSummary()) ? lexical(query, chunk.getChunkSummary()) * 0.25d : 0d;
+    return base * 0.6d + textScore * 0.3d + summaryScore * 0.1d;
+  }
+
+  private double lexical(String query, String text) {
+    if (!StringUtils.hasText(query) || !StringUtils.hasText(text)) {
+      return 0d;
+    }
+    String normalizedQuery = query.toLowerCase();
+    String normalizedText = text.toLowerCase();
+    String[] parts = normalizedQuery.split("\\s+");
+    int hit = 0;
+    for (String part : parts) {
+      // 过滤过短词，减少停用词或无意义 token 对排序的干扰。
+      if (part.length() >= 2 && normalizedText.contains(part)) {
+        hit++;
+      }
+    }
+    return parts.length == 0 ? 0d : (double) hit / (double) parts.length;
+  }
+}
+```
+
+### 来源回填
+
+
 ## 6. 文档内 AI 辅助创作（多智能体编排 + Reflection Loop）
