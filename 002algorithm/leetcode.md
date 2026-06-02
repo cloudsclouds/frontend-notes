@@ -1,25 +1,6 @@
-## 1. 二分查找
+# 数组
 
-```js
-var search = function(nums, target) {
-    let left = 0, right = nums.length - 1;
-    while(left <= right) {
-        const mid = left + Math.floor((right - left) / 2);
-        if (nums[mid] === target) {
-            return mid;
-        } else if (nums[mid] > target) {
-            right = mid - 1;
-        } else {
-            left = mid + 1;
-        }
-    }
-    return -1;
-};
-```
-
-# 排序
-
-## 2. 合并两个有序数组
+## 1. 合并两个有序数组
 
 ```js
 var merge = function(nums1, m, nums2, n) {
@@ -42,7 +23,7 @@ var merge = function(nums1, m, nums2, n) {
 };
 ```
 
-## 3. 合并两个有序链表
+## 2. 合并两个有序链表
 
 ```js
 var mergeTwoLists = function(list1, list2) {
@@ -69,7 +50,66 @@ var mergeTwoLists = function(list1, list2) {
 };
 ```
 
-## 4. 快速排序
+## 3. 螺旋矩阵
+输入：matrix = [[1,2,3],[4,5,6],[7,8,9]]
+输出：[1,2,3,6,9,8,7,4,5]
+```js
+var spiralOrder = function(matrix) {
+    const m = matrix.length;
+    const n = matrix[0].length;
+    let top = 0, bottom = m - 1, left = 0, right = n - 1;
+    const res = [];
+
+    while (top <= bottom && left <= right) {
+        for (let i = left; i <= right; i++) {
+            res.push(matrix[top][i]);
+        }
+        top++;
+        for (let i = top; i <= bottom; i++) {
+            res.push(matrix[i][right]);
+        }
+        right--;
+        if (top <= bottom) {
+            for (let i = right; i >= left; i--) {
+                res.push(matrix[bottom][i]);
+            }
+            bottom--;
+        }
+        if (left <= right) {
+            for (let i = bottom; i >= top; i--) {
+                res.push(matrix[i][left]);
+            }
+            left++;
+        }
+    }
+    return res;
+};
+
+```
+
+# 查找
+## 4. 二分查找
+
+```js
+var search = function(nums, target) {
+    let left = 0, right = nums.length - 1;
+    while(left <= right) {
+        const mid = left + Math.floor((right - left) / 2);
+        if (nums[mid] === target) {
+            return mid;
+        } else if (nums[mid] > target) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+    return -1;
+};
+```
+
+# 排序
+
+## 5. 快速排序
 
 ```js
 var sortArray = function(nums) {
@@ -101,7 +141,7 @@ var sortArray = function(nums) {
 
 # 哈希
 
-## 5. 两数之和
+## 6. 两数之和
 
 ```js
 var twoSum = function(nums, target) {
@@ -120,7 +160,7 @@ var twoSum = function(nums, target) {
 
 # 双指针
 
-## 6. 移动零
+## 7. 移动零
 
 right 指针负责遍历数组，left 指针指向下一个非零元素应该放的位置。
 当 right 遇到非零元素时，就和 left 位置交换，并让 left 前进一位。
@@ -139,7 +179,7 @@ var moveZeroes = function(nums) {
 };
 ```
 
-## 7. 三数之和
+## 8. 三数之和
 
 先对数组排序，然后固定第一个数 first。
 接着使用双指针 second 和 third，在剩余区间寻找另外两个数，使三数之和为 0。
@@ -174,9 +214,38 @@ var threeSum = function(nums) {
 };
 ```
 
+## 9. 接雨水
+给定一个非负整数数组 height，表示每个位置的柱子高度，宽度都为 1。下雨后，求这些柱子之间一共能接多少单位的雨水。
+输入：height = [0,1,0,2,1,0,1,3,2,1,2,1]
+输出：6
+
+用双指针 left / right 维护：leftMax（左边最高） 、rightMax（右边最高）
+某位置能接的水 = min(左侧最大值, 右侧最大值) - 当前高度
+```js
+var trap = function(height) {
+    let left = 0, right = height.length - 1;
+    let leftMax = 0, rightMax = 0;
+    let res = 0;
+
+    while (left < right) {
+        if (height[left] < height[right]) {
+            leftMax = Math.max(leftMax, height[left]);
+            res += leftMax - height[left];
+            left++;
+        } else {
+            rightMax = Math.max(rightMax, height[right]);
+            res += rightMax - height[right];
+            right--;
+        }
+    }
+    return res;
+};
+```
+
+
 # 贪心
 
-## 8. 买卖股票的最佳时机
+## 10. 买卖股票的最佳时机
 
 ```js
 var maxProfit = function(prices) {
@@ -190,7 +259,7 @@ var maxProfit = function(prices) {
 };
 ```
 
-## 9. 跳跃游戏
+## 11. 跳跃游戏
 
 如果：`maxReach < i`，说明：当前位置 i 根本到不了
 否则更新最远距离：`Math.max(maxReach, nums[i] + i)`
@@ -208,7 +277,7 @@ var canJump = function(nums) {
 
 # DP
 
-## 10. 爬楼梯
+## 12. 爬楼梯
 
 ```js
 var climbStairs = function(n) {
@@ -222,7 +291,7 @@ var climbStairs = function(n) {
 };
 ```
 
-## 11. 打家劫舍
+## 13. 打家劫舍
 
 一个专业的小偷，计划偷窃沿街的房屋。每间房内都藏有一定的现金，影响小偷偷窃的唯一制约因素就是相邻的房屋装有相互连通的防盗系统，如果两间相邻的房屋在同一晚上被小偷闯入，系统会自动报警。
 给定一个代表每个房屋存放金额的非负整数数组 nums ，请计算 不触动警报装置的情况下 ，一夜之内能够偷窃到的最高金额。
@@ -240,7 +309,7 @@ var rob = function(nums) {
 };
 ```
 
-## 12. 最大子数组和
+## 14. 最大子数组和
 
 ```js
 var maxSubArray = function(nums) {
@@ -256,7 +325,7 @@ var maxSubArray = function(nums) {
 };
 ```
 
-## 13. 最长递增子序列
+## 15. 最长递增子序列
 
 ```js
 var lengthOfLIS = function(nums) {
@@ -275,7 +344,7 @@ var lengthOfLIS = function(nums) {
 };
 ```
 
-## 14. 零钱兑换
+## 16. 零钱兑换
 
 给定不同面额的硬币 coins 和一个总金额 amount。编写一个函数来计算可以凑成总金额所需的最少的硬币个数。如果没有任何一种硬币组合能组成总金额，返回 -1。
 你可以认为每种硬币的数量是无限的。
@@ -296,7 +365,7 @@ var coinChange = function(coins, amount) {
 };
 ```
 
-## 15. 不同路径
+## 17. 不同路径
 
 `dp[i][j] = dp[i-1][j] + dp[i][j-1] = 到达(i,j)的路径数`
 第一行 = 1，第一列 = 1
@@ -313,7 +382,7 @@ var uniquePaths = function(m, n) {
 };
 ```
 
-## 16. 最小路径和
+## 18. 最小路径和
 
 尤其注意初始化路径：dp[0][0] = grid[0][0]，第一行：累加，第一列：累加
 dp[i][j] = 到(i,j)的最小路径和 = min(上, 左) + 当前值
@@ -339,7 +408,7 @@ var minPathSum = function(grid) {
 };
 ```
 
-## 17. 最长回文子串
+## 19. 最长回文子串
 
 dp[i][j] = s[i..j] 是否是回文
 
@@ -373,7 +442,7 @@ var longestPalindrome = function(s) {
 };
 ```
 
-## 18. 最长公共子序列
+## 20. 最长公共子序列
 
 dp[i][j] = 前i个 & 前j个 的最长公共子序列长度
 相等：dp[i][j] = dp[i-1][j-1] + 1
@@ -401,7 +470,7 @@ var longestCommonSubsequence = function(text1, text2) {
 ```
 
 # 字符串
-## 19. 版本比较
+## 21. 版本比较
 给你两个 版本号字符串 version1 和 version2 ，请你比较它们。版本号由被点 '.' 分开的修订号组成。修订号的值 是它 转换为整数 并忽略前导零。
 比较版本号时，请按 从左到右的顺序 依次比较它们的修订号。如果其中一个版本字符串的修订号较少，则将缺失的修订号视为 0。
 ```js
@@ -419,7 +488,7 @@ var compareVersion = function(version1, version2) {
 };
 ```
 
-## 20. 字符串相加
+## 22. 字符串相加
 ```js
 var addStrings = function(num1, num2) {
     const res = [];
@@ -438,12 +507,83 @@ var addStrings = function(num1, num2) {
 };
 ```
 
+## 23. 有效的回文串
+```js
+var isPalindrome = function(s) {
+  s = s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  let left = 0, right = s.length - 1;
+  while (left < right) {
+    if (s[left++] !== s[right--]) return false;
+  }
+  return true;
+};
+```
+
+## 24. 最长公共前缀
+```js
+var longestCommonPrefix = function(strs) {
+    let prefix = strs[0];
+    for (let i = 1; i < strs.length; i++) {
+        while (strs[i].indexOf(prefix) !== 0) {
+            prefix = prefix.slice(0, prefix.length-1);
+            if (prefix === '')  return '';
+        }
+    }
+    return prefix;
+};
+```
+
+# 链表
+## 25. 反转链表
+```js
+var reverseList = function(head) {
+    let pre = null, p = head;
+    while(p) {
+        const next = p.next;
+        p.next = pre;
+        pre = p;
+        p = next;
+    }
+    return pre;
+}
+```
+
+## 26. 环形链表
+```js
+var hasCycle = function(head) {
+    let fast = head, slow = head;
+    while(fast && fast.next) {
+        fast = fast.next.next;
+        slow = slow.next;
+        if (fast === slow)  return true;
+    }
+    return false;
+}
+```
+
+## 27. 删除链表倒数第N个节点
+> dummy 节点用于统一链表操作，特别是在删除头节点时，可以避免单独处理边界情况，使代码更加简洁和安全。
+```js
+var removeNthFromEnd = function(head, n) {
+    const dummy = new ListNode(0, head);
+    let left = dummy, right = dummy;
+    while(n--){
+        right = right.next;
+    }
+    while(right.next){
+        left = left.next;
+        right = right.next;
+    }
+    left.next = left.next.next;
+    return dummy.next;
+};
+```
 
 # 二叉树
 
 ## DFS 遍历
 
-### 19. 中序 / 前序 / 后序通用模板
+### 23. 中序 / 前序 / 后序通用模板
 ```js
 const dfs = (root) => {
     if (!root) return;
@@ -458,7 +598,7 @@ const dfs = (root) => {
 };
 ```
 
-### 20. 二叉树的中序遍历
+### 24. 二叉树的中序遍历
 ```js
 var inorderTraversal = function(root) {
     const res = [];
@@ -480,7 +620,7 @@ var inorderTraversal = function(root) {
 - `path / sum / state` 作为递归参数向下传
 - 到叶子节点时做一次结算
 
-### 21. 路径总和
+### 25. 路径总和
 ```js
 var hasPathSum = function(root, targetSum) {
     if (!root) return false;
@@ -492,7 +632,7 @@ var hasPathSum = function(root, targetSum) {
 };
 ```
 
-### 22. 二叉树的所有路径
+### 26. 二叉树的所有路径
 ```js
 var binaryTreePaths = function(root) {
     const res = [];
@@ -514,7 +654,7 @@ var binaryTreePaths = function(root) {
 };
 ```
 
-### 23. 求根到叶子节点数字之和
+### 27. 求根到叶子节点数字之和
 ```js
 var sumNumbers = function(root) {
     let total = 0;
@@ -544,7 +684,7 @@ var sumNumbers = function(root) {
 - 先拿到左右子树的信息
 - 再在当前节点做汇总
 
-### 24. 二叉树的最大深度
+### 28. 二叉树的最大深度
 ```js
 var maxDepth = function(root) {
     if (!root) return 0;
@@ -554,7 +694,7 @@ var maxDepth = function(root) {
 };
 ```
 
-### 25. 二叉树的最大直径
+### 29. 二叉树的最大直径
 ```js
 var diameterOfBinaryTree = function(root) {
     let res = 0;
@@ -572,7 +712,7 @@ var diameterOfBinaryTree = function(root) {
 };
 ```
 
-### 26. 二叉树的最近公共祖先
+### 30. 二叉树的最近公共祖先
 ```js
 var lowestCommonAncestor = function(root, p, q) {
     if (!root || root === p || root === q) return root;
@@ -587,7 +727,7 @@ var lowestCommonAncestor = function(root, p, q) {
 
 ## 树结构变换
 
-### 27. 反转二叉树
+### 31. 反转二叉树
 ```js
 var flipTree = function(root) {
     if (!root) return null;
@@ -598,7 +738,7 @@ var flipTree = function(root) {
 };
 ```
 
-### 28. 对称二叉树
+### 32. 对称二叉树
 ```js
 var checkSymmetricTree = function(root) {
     if (!root) return true;
@@ -614,7 +754,7 @@ var checkSymmetricTree = function(root) {
 };
 ```
 
-### 29. 从前序与中序遍历序列构造二叉树
+### 33. 从前序与中序遍历序列构造二叉树
 ```js
 var buildTree = function(preorder, inorder) {
     if (!preorder.length || !inorder.length) return null;
@@ -638,7 +778,7 @@ var buildTree = function(preorder, inorder) {
 
 这组题本质上都能抽成同一个 BFS 框架，只是“每层怎么取结果”不一样。
 
-### 30. 基础层序遍历
+### 34. 基础层序遍历
 ```js
 var levelOrder = function(root) {
     if (!root) return [];
@@ -664,7 +804,7 @@ var levelOrder = function(root) {
 };
 ```
 
-### 31. 锯齿形层次遍历
+### 35. 锯齿形层次遍历
 ```js
 var zigzagLevelOrder = function(root) {
     if (!root) return [];
@@ -693,7 +833,7 @@ var zigzagLevelOrder = function(root) {
 };
 ```
 
-### 32. 二叉树的右视图
+### 36. 二叉树的右视图
 ```js
 var rightSideView = function(root) {
     if (!root) return [];
@@ -714,4 +854,5 @@ var rightSideView = function(root) {
     return res;
 };
 ```
+
 
