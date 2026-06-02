@@ -3087,6 +3087,13 @@ public class SourceBackfillService {
 ```
 
 ## 6. 文档内 AI 辅助创作（多智能体编排 + Reflection Loop）
+这部分的核心不是“让模型一次性写完”，而是把复杂任务拆成一条清晰的链路：
+先做复杂度判断，再决定走 Fast 还是 Swarm；
+Swarm 里由 Planner 拆任务、Worker 并行执行、Critic 做校验、Merger 做聚合，最后用 Reflection Loop 把容易出错的地方再修一轮。
+
+前端拿到的也不只是纯文本，而是一份结构化结果，里面会带上替换位置、插入内容、Mermaid 块等信息，方便直接回填到编辑器里。
+
+### 编排入口
 ```java
 @Service
 @RequiredArgsConstructor
@@ -3097,54 +3104,96 @@ public class AiWritingOrchestratorService {
   private final WorkerAgent workerAgent;
   private final CriticAgent criticAgent;
   private final MergerAgent mergerAgent;
+  private final ResponseAssembler responseAssembler;
 
   public AiWritingResult handle(AiWritingRequest request) {
+    // 1. 空请求直接返回空结果，避免后面所有 Agent 都做无意义工作。
     if (request == null || !org.springframework.util.StringUtils.hasText(request.getContent())) {
       return AiWritingResult.empty();
     }
 
+    // 2. 先做复杂度打分，低复杂度任务直接走 Fast 通道，减少编排开销和模型调用成本。
     int complexity = complexityScorer.score(request);
     if (complexity <= 3) {
-      // 低复杂度任务直接走 Fast 通道，减少编排和调度开销。
-      String fastResult = workerAgent.execute(request);
-      return AiWritingResult.success(fastResult, "FAST");
+      return handleFastPath(request);
     }
 
-    List<TaskNode> taskDAG = plannerAgent.plan(request);
-    SharedWorkspace workspace = new SharedWorkspace();
-
-    for (TaskNode node : taskDAG) {
-      String partial = workerAgent.execute(node, workspace);
-      workspace.put(node.getTaskId(), partial);
-    }
-
-    String merged = mergerAgent.merge(workspace);
-    String reflected = reflectUntilPass(request, merged, workspace);
-    return AiWritingResult.success(reflected, "SWARM");
+    // 3. 复杂任务进入 Swarm：先规划，再并行执行，再统一聚合。
+    return handleSwarmPath(request);
   }
 
-  private String reflectUntilPass(AiWritingRequest request, String draft, SharedWorkspace workspace) {
+  private AiWritingResult handleFastPath(AiWritingRequest request) {
+    // Fast 通道只需要一个 Worker，适合翻译、轻量润色、短文本摘要等低复杂度场景。
+    String content = workerAgent.execute(request);
+    return responseAssembler.assemble(request, content, "FAST", List.of(), new SharedWorkspace());
+  }
+
+  private AiWritingResult handleSwarmPath(AiWritingRequest request) {
+    // Planner 先把任务拆成 DAG，节点之间的依赖关系会决定执行顺序。
+    TaskPlan plan = plannerAgent.plan(request);
+
+    // SharedWorkspace 就是黑板模式里的“共享工作区”：
+    // 每个 Agent 都可以写入中间结果，但不直接互相通信，避免链路耦合。
+    SharedWorkspace workspace = new SharedWorkspace(plan.getRequestId());
+    workspace.put("request.content", request.getContent(), "ingest");
+
+    // 按 DAG 顺序执行子任务。真正的实现里可以把“互不依赖”的节点并行化。
+    for (TaskNode node : plan.getNodes()) {
+      String partial = workerAgent.execute(node, workspace);
+      workspace.put(node.getWorkspaceKey(), partial, node.getAgentName());
+    }
+
+    // Merger 负责把分散的中间结果拼成一个可交付的初稿。
+    String merged = mergerAgent.merge(workspace);
+
+    // Critic + Reflection Loop：先检查，再修正，直到通过或者达到阈值。
+    String reflected = reflectUntilPass(request, merged, workspace, plan);
+
+    // 最后把文本和结构化 patch 一起返回，前端才能知道“改哪儿、怎么改”。
+    return responseAssembler.assemble(request, reflected, "SWARM", plan.getPatchHints(), workspace);
+  }
+
+  private String reflectUntilPass(AiWritingRequest request, String draft, SharedWorkspace workspace, TaskPlan plan) {
     String current = draft;
-    int maxRounds = determineMaxRounds(request);
+    int maxRounds = determineMaxRounds(request, plan);
+    String previousSignature = "";
+
     for (int round = 0; round < maxRounds; round++) {
       CriticResult criticResult = criticAgent.review(request, current, workspace);
+
+      // 1. 通过就直接返回，避免不必要的反复加工。
       if (criticResult.isPass()) {
         return current;
       }
+
+      // 2. 如果连续两轮问题类型没变化、文本也没有明显改善，就提前停掉，避免死循环。
+      String currentSignature = criticResult.signature();
+      if (currentSignature.equals(previousSignature) && round > 0) {
+        break;
+      }
+      previousSignature = currentSignature;
+
+      // 3. Worker 根据 Critic 的问题清单做局部修正，而不是重写整篇内容。
       current = workerAgent.revise(request, current, criticResult.getIssues(), workspace);
     }
+
     // 达到阈值后停止反思，避免无效循环。
     return current;
   }
 
-  private int determineMaxRounds(AiWritingRequest request) {
+  private int determineMaxRounds(AiWritingRequest request, TaskPlan plan) {
+    // Mermaid / 结构化输出对语法非常敏感，所以允许多一轮检查。
     if (request.getTaskType() == AiWritingTaskType.MERMAID) {
       return 3;
     }
+
+    // 长文总结通常要做两轮以内的修正，平衡质量和时延。
     if (request.getTaskType() == AiWritingTaskType.SUMMARY) {
       return 2;
     }
-    return 1;
+
+    // 其它任务默认只做一轮反思，控制成本。
+    return plan.requiresStrictValidation() ? 2 : 1;
   }
 }
 ```
@@ -3162,11 +3211,12 @@ public interface ComplexityScorer {
  * 规划器：把复杂任务拆成多个可并行执行的子任务，形成任务 DAG。
  */
 public interface PlannerAgent {
-  List<TaskNode> plan(AiWritingRequest request);
+  TaskPlan plan(AiWritingRequest request);
 }
 
 /**
  * Worker：负责执行翻译、润色、总结、Mermaid 生成等具体子任务。
+ * 在 Swarm 模式里，Worker 不直接修改最终结果，而是先把中间结果写回共享工作区。
  */
 public interface WorkerAgent {
   String execute(AiWritingRequest request);
@@ -3176,6 +3226,7 @@ public interface WorkerAgent {
 
 /**
  * Critic：负责检查内容是否偏题、格式是否正确、引用是否合法。
+ * 这里给它加一个 signature，方便做“有没有实质变化”的收敛判断。
  */
 public interface CriticAgent {
   CriticResult review(AiWritingRequest request, String draft, SharedWorkspace workspace);
@@ -3189,44 +3240,181 @@ public interface MergerAgent {
 }
 
 /**
- * 共享工作区：所有 Agent 都从这里读写中间结果，避免重复理解全文。
+ * ResponseAssembler：把最终文本包装成前端可执行的结构化协议。
+ * 前端拿到这个结果后，不只是能展示，还能直接知道要替换哪个区间、是否是 Mermaid、有没有引用信息。
+ */
+public interface ResponseAssembler {
+  AiWritingResult assemble(
+      AiWritingRequest request,
+      String content,
+      String mode,
+      List<DocumentPatch> patchHints,
+      SharedWorkspace workspace
+  );
+}
+
+/**
+ * SharedWorkspace：黑板模式里的共享工作区。
+ * 这里不只是一个 String Map，而是带版本号、来源、更新时间的可追踪数据结构，
+ * 这样不同 Agent 写入时就能做冲突定位，也方便后续审计和回放。
  */
 public class SharedWorkspace {
-  private final Map<String, String> data = new LinkedHashMap<>();
+  private final String requestId;
+  private final Map<String, WorkspaceCell> data = new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.concurrent.atomic.AtomicLong version = new java.util.concurrent.atomic.AtomicLong(0);
 
-  public void put(String key, String value) {
-    if (org.springframework.util.StringUtils.hasText(key)) {
-      data.put(key, value == null ? "" : value);
+  public SharedWorkspace(String requestId) {
+    this.requestId = requestId;
+  }
+
+  public String getRequestId() {
+    return requestId;
+  }
+
+  public long put(String key, String value, String producer) {
+    if (!org.springframework.util.StringUtils.hasText(key)) {
+      return version.get();
     }
+    long nextVersion = version.incrementAndGet();
+    data.put(key, new WorkspaceCell(
+        value == null ? "" : value,
+        nextVersion,
+        producer == null ? "unknown" : producer,
+        java.time.Instant.now()
+    ));
+    return nextVersion;
   }
 
-  public String get(String key) {
-    return data.get(key);
+  public java.util.Optional<WorkspaceCell> get(String key) {
+    return java.util.Optional.ofNullable(data.get(key));
   }
 
-  public Map<String, String> snapshot() {
-    return Collections.unmodifiableMap(data);
+  public Map<String, WorkspaceCell> snapshot() {
+    return java.util.Collections.unmodifiableMap(data);
   }
 }
 
 /**
- * 请求协议：前端不只需要文本，还需要知道替换、插入还是生成 Mermaid。
+ * 工作区里的单个数据格。
+ * 版本号和 producer 这两个字段很关键：前者用于判断最新写入，后者用于定位是谁产出的中间结果。
+ */
+public record WorkspaceCell(
+    String value,
+    long version,
+    String producer,
+    java.time.Instant updatedAt
+) {}
+
+/**
+ * 任务计划：规划器拆出来的结果。
+ * nodes 表示子任务列表，patchHints 给前端提供回填建议，strictValidation 用来控制反思阈值。
+ */
+public class TaskPlan {
+  private String requestId;
+  private List<TaskNode> nodes = List.of();
+  private List<DocumentPatch> patchHints = List.of();
+  private boolean strictValidation;
+
+  public String getRequestId() {
+    return requestId == null ? java.util.UUID.randomUUID().toString() : requestId;
+  }
+
+  public List<TaskNode> getNodes() {
+    return nodes == null ? List.of() : nodes;
+  }
+
+  public List<DocumentPatch> getPatchHints() {
+    return patchHints == null ? List.of() : patchHints;
+  }
+
+  public boolean requiresStrictValidation() {
+    return strictValidation;
+  }
+}
+
+/**
+ * 任务节点：用于描述子任务、依赖关系和目标类型。
+ * 这里把 workspaceKey 一并带上，是为了明确每个 Worker 的结果写到哪里。
+ */
+public class TaskNode {
+  private String taskId;
+  private String workspaceKey;
+  private String prompt;
+  private AiWritingTaskType taskType;
+  private List<String> dependsOn = List.of();
+  private String agentName;
+
+  public String getTaskId() {
+    return taskId;
+  }
+
+  public String getWorkspaceKey() {
+    return org.springframework.util.StringUtils.hasText(workspaceKey) ? workspaceKey : taskId;
+  }
+
+  public AiWritingTaskType getTaskType() {
+    return taskType;
+  }
+
+  public List<String> getDependsOn() {
+    return dependsOn == null ? List.of() : dependsOn;
+  }
+
+  public String getAgentName() {
+    return org.springframework.util.StringUtils.hasText(agentName) ? agentName : "worker";
+  }
+}
+
+/**
+ * 反思结果：Critic 告诉 Worker 哪些地方需要修正。
+ * signature 用来做收敛判断，避免同样的问题一直重复出现。
+ */
+public class CriticResult {
+  private boolean pass;
+  private List<String> issues;
+  private String signature;
+
+  public boolean isPass() {
+    return pass;
+  }
+
+  public List<String> getIssues() {
+    return issues == null ? List.of() : issues;
+  }
+
+  public String signature() {
+    if (org.springframework.util.StringUtils.hasText(signature)) {
+      return signature;
+    }
+    return String.join("|", getIssues());
+  }
+}
+
+/**
+ * 面向编辑器的结构化输出。
+ * 不是只返回一段文本，而是返回“文本 + 操作建议”，这样前端才能知道该插入、替换还是生成 Mermaid。
  */
 public class AiWritingResult {
   private final String content;
   private final String mode;
+  private final List<DocumentPatch> patches;
 
-  private AiWritingResult(String content, String mode) {
+  private AiWritingResult(String content, String mode, List<DocumentPatch> patches) {
     this.content = content;
     this.mode = mode;
+    this.patches = patches == null ? List.of() : patches;
   }
 
   public static AiWritingResult empty() {
-    return new AiWritingResult("", "EMPTY");
+    return new AiWritingResult("", "EMPTY", List.of());
   }
 
   public static AiWritingResult success(String content, String mode) {
-    return new AiWritingResult(content, mode);
+    return new AiWritingResult(content, mode, List.of());
+  }
+
+  public static AiWritingResult success(String content, String mode, List<DocumentPatch> patches) {
+    return new AiWritingResult(content, mode, patches);
   }
 
   public String getContent() {
@@ -3236,31 +3424,49 @@ public class AiWritingResult {
   public String getMode() {
     return mode;
   }
+
+  public List<DocumentPatch> getPatches() {
+    return patches;
+  }
 }
 
 /**
- * 任务节点：用于描述子任务、依赖关系和目标类型。
+ * 前端可以直接消费的编辑指令。
+ * 比如：替换某个区间、插入一段内容、或者把这段内容当成 Mermaid 代码块渲染。
  */
-public class TaskNode {
-  private String taskId;
-  private String prompt;
-  private AiWritingTaskType taskType;
+public class DocumentPatch {
+  private PatchType type;
+  private int startOffset;
+  private int endOffset;
+  private String content;
+  private Map<String, Object> meta = Map.of();
+
+  public PatchType getType() {
+    return type;
+  }
+
+  public int getStartOffset() {
+    return startOffset;
+  }
+
+  public int getEndOffset() {
+    return endOffset;
+  }
+
+  public String getContent() {
+    return content;
+  }
+
+  public Map<String, Object> getMeta() {
+    return meta == null ? Map.of() : meta;
+  }
 }
 
-/**
- * 反思结果：Critic 告诉 Worker 哪些地方需要修正。
- */
-public class CriticResult {
-  private boolean pass;
-  private List<String> issues;
-
-  public boolean isPass() {
-    return pass;
-  }
-
-  public List<String> getIssues() {
-    return issues == null ? List.of() : issues;
-  }
+public enum PatchType {
+  INSERT,
+  REPLACE,
+  APPEND,
+  MERMAID
 }
 
 public enum AiWritingTaskType {
@@ -3276,13 +3482,28 @@ public class AiWritingRequest {
   private String title;
   private AiWritingTaskType taskType;
   private boolean needKnowledgeBase;
+  private String documentId;
+  private String userId;
+  private Integer maxReflectionRounds;
 
   public String getContent() {
     return content;
   }
 
+  public String getTitle() {
+    return title;
+  }
+
   public AiWritingTaskType getTaskType() {
-    return taskType;
+    return taskType == null ? AiWritingTaskType.POLISH : taskType;
+  }
+
+  public boolean isNeedKnowledgeBase() {
+    return needKnowledgeBase;
+  }
+
+  public int getMaxReflectionRoundsOrDefault(int fallback) {
+    return maxReflectionRounds == null ? fallback : Math.max(1, maxReflectionRounds);
   }
 }
 ```
