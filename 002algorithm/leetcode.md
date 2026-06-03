@@ -134,17 +134,81 @@ var sortArray = function(nums) {
         return left;
     }
 
-    QuickSort(nums, 0, nums.length-1);
+    QuickSort(nums, 0, nums.length-1  );
     return nums;
 };
 ```
 
 ## 6. 查找第 k 大
+```js
+var findKthLargest = function(nums, k) {
+    const quickSelect = (nums, left, right) => {
+        if (left === right) return nums[left];
+        const m = partition(nums, left, right);
+        if (m === nums.length - k)  return nums[m];
+        else if (m > nums.length - k) {
+            return quickSelect(nums, left, m - 1);
+        } else {
+            return quickSelect(nums, m + 1, right);
+        }
+    }
 
+    const partition = (nums, left, right) => {
+        const randomIndex = left + Math.floor(Math.random()*(right - left + 1));
+        [nums[randomIndex], nums[left]] = [nums[left], nums[randomIndex]];
+        const pivot = nums[left];
+        while(left < right) {
+            while(left < right && nums[right] >= pivot) right--;
+            nums[left] = nums[right];
+            while(left < right && nums[left] <= pivot)  left++;
+            nums[right] = nums[left];
+        }
+        nums[left] = pivot;
+        return left;
+    }
 
-# 哈希
+    return quickSelect(nums, 0, nums.length - 1);
+}
+```
 
-## 6. 两数之和
+## 选择排序
+```js
+function selectSort(nums) {
+    const n = nums.length;
+    for (let i = 0; i < n; i++) {
+        let minIndex = i;
+        for (let j = i + 1; j < n; j++) {
+            if (nums[j] < nums[minIndex]) {
+                minIndex = j;
+            }
+        }
+        [nums[i], nums[minIndex]] = [nums[minIndex], nums[i]];
+    }
+    return nums;
+}
+```
+
+## 冒泡排序
+```js
+function BubbleSort(nums) {
+    const n = nums.length;
+    for (let i = 0; i < n; i++) {
+        let flag = true;
+        for (let j = 0; j < n - i - 1; j++) {
+            if (nums[j] > nums[j+1]) {
+                [nums[j], nums[j+1]] = [nums[j+1], nums[j]];
+                flag = false;
+            }
+        }
+        if (flag) break;
+    }
+    return nums;
+}
+```
+
+# 哈希 和 Set 
+
+## 7. 两数之和
 
 ```js
 var twoSum = function(nums, target) {
@@ -161,9 +225,57 @@ var twoSum = function(nums, target) {
 };
 ```
 
+## 8. 字母异位词分组
+strs = ["eat", "tea", "tan", "ate", "nat", "bat"]
+遍历字符串数组，把每个字符串排序后的结果作为 key。
+因为字母异位词排序后是一样的，所以可以分到同一组。
+用 Map 存储 key 到字符串数组的映射，最后返回所有 value 即可。
+```js
+var groupAnagrams = function(strs) {
+    const myMap = new Map();
+    for (let str of strs) {
+        const key = str.split('').sort().join('');
+        if (!myMap.has(key)) {
+            myMap.set(key, str);
+        }
+        myMap.get(key).push(str);
+    }
+    return Array.from(myMap.values());
+}
+```
+
+
+## 9. 最长连续序列
+给定一个未排序的整数数组 nums ，找出数字连续的最长序列（不要求序列元素在原数组中连续）的长度。
+示例 1：
+输入：nums = [100,4,200,1,3,2]
+输出：4
+解释：最长数字连续序列是 [1, 2, 3, 4]。它的长度为 4。
+
+```js
+var longestConsecutive = function(nums) {
+    const mySet = new Set(nums);
+    let maxLen = 0;
+    for (let num of nums) {
+        // num 是序列起点
+        if (!mySet.has(num-1)) {
+            let current = num;
+            let len = 1;
+            while(mySet.has(current+1)) {
+                current++;
+                len++;
+            }
+            maxLen = Math.max(maxLen, len);
+        }
+    }
+    return maxLen;
+}
+```
+
+
 # 双指针
 
-## 7. 移动零
+## 10. 移动零
 
 right 指针负责遍历数组，left 指针指向下一个非零元素应该放的位置。
 当 right 遇到非零元素时，就和 left 位置交换，并让 left 前进一位。
@@ -182,7 +294,7 @@ var moveZeroes = function(nums) {
 };
 ```
 
-## 8. 三数之和
+## 11. 三数之和
 
 先对数组排序，然后固定第一个数 first。
 接着使用双指针 second 和 third，在剩余区间寻找另外两个数，使三数之和为 0。
@@ -217,7 +329,7 @@ var threeSum = function(nums) {
 };
 ```
 
-## 9. 接雨水
+## 12. 接雨水
 给定一个非负整数数组 height，表示每个位置的柱子高度，宽度都为 1。下雨后，求这些柱子之间一共能接多少单位的雨水。
 输入：height = [0,1,0,2,1,0,1,3,2,1,2,1]
 输出：6
@@ -248,7 +360,7 @@ var trap = function(height) {
 
 # 贪心
 
-## 10. 买卖股票的最佳时机
+## 13. 买卖股票的最佳时机
 
 ```js
 var maxProfit = function(prices) {
@@ -262,7 +374,7 @@ var maxProfit = function(prices) {
 };
 ```
 
-## 11. 跳跃游戏
+## 14. 跳跃游戏
 
 如果：`maxReach < i`，说明：当前位置 i 根本到不了
 否则更新最远距离：`Math.max(maxReach, nums[i] + i)`
@@ -280,7 +392,7 @@ var canJump = function(nums) {
 
 # DP
 
-## 12. 爬楼梯
+## 15. 爬楼梯
 
 ```js
 var climbStairs = function(n) {
@@ -294,7 +406,7 @@ var climbStairs = function(n) {
 };
 ```
 
-## 13. 打家劫舍
+## 16. 打家劫舍
 
 一个专业的小偷，计划偷窃沿街的房屋。每间房内都藏有一定的现金，影响小偷偷窃的唯一制约因素就是相邻的房屋装有相互连通的防盗系统，如果两间相邻的房屋在同一晚上被小偷闯入，系统会自动报警。
 给定一个代表每个房屋存放金额的非负整数数组 nums ，请计算 不触动警报装置的情况下 ，一夜之内能够偷窃到的最高金额。
@@ -312,7 +424,7 @@ var rob = function(nums) {
 };
 ```
 
-## 14. 最大子数组和
+## 17. 最大子数组和
 
 ```js
 var maxSubArray = function(nums) {
@@ -328,7 +440,7 @@ var maxSubArray = function(nums) {
 };
 ```
 
-## 15. 最长递增子序列
+## 18. 最长递增子序列
 
 ```js
 var lengthOfLIS = function(nums) {
@@ -347,8 +459,76 @@ var lengthOfLIS = function(nums) {
 };
 ```
 
-## 16. 零钱兑换
+## 背包问题
+### 0-1背包
+```
+dp[j] = 容量为j时的最大价值 = max(不选当前物品, 选当前物品)
+```
+必须：倒序，否则：一个物品会被重复选
 
+```js
+for (let i = 0; i < n; i++) {
+    for (let j = W; j >= weight[i]; j--) {
+        dp[j] = Math.max(dp[j], dp[j-weight[i]] + value[i])
+    }
+}
+```
+
+### 完全背包
+```js
+for (let i = 0; i < n; i++) {
+    for (let j = weight[i]; j <= W; j++) {
+        dp[j] = Math.max(dp[j], dp[j-weight[i]] + value[i])
+    }
+}
+```
+
+## 完全平方数
+给你一个正整数 n，找到若干个完全平方数之和等于 n，并且要求使用的数量最少。
+dp[i] = 凑成数字 i 所需的最少完全平方数个数
+```js
+var numSquares = function(n) {
+    const dp = new Array(n+1).fill(Infinity);
+    for (let i = 0; i <= n; i++) {
+        for (let j = 1; j*j <= i; j++) {
+            dp[i] = Math.min(dp[i], dp[i-j*j]+1);
+        }
+    }
+    return dp[n];
+}
+```
+
+## 最大乘积子数组
+```
+maxDp[i] = 以 i 结尾的最大乘积
+minDp[i] = 以 i 结尾的最小乘积
+maxDp[i] = max( nums[i], nums[i] * maxDp[i-1], nums[i] * minDp[i-1])
+minDp[i] = min( nums[i], nums[i] * maxDp[i-1], nums[i] * minDp[i-1])
+```
+
+```js
+var maxProduct = function(nums) {
+    const n = nums.length;
+    let max = nums[0];
+    let min = nums[0];
+    let res = nums[0];
+
+    for (let i = 1; i < n; i++) {
+        const cur = nums[i];
+        let tempMax = Math.max(cur, cur * max, cur * min);
+        let tempMin = Math.min(cur, cur * max, cur * min);
+
+        max = tempMax;
+        min = tempMin;
+
+        res = Math.max(res, max);
+    }
+    return res;
+}
+```
+
+
+## 19. 零钱兑换
 给定不同面额的硬币 coins 和一个总金额 amount。编写一个函数来计算可以凑成总金额所需的最少的硬币个数。如果没有任何一种硬币组合能组成总金额，返回 -1。
 你可以认为每种硬币的数量是无限的。
 `dp[i]` = 凑出金额 i 的最少硬币数
@@ -368,7 +548,7 @@ var coinChange = function(coins, amount) {
 };
 ```
 
-## 17. 不同路径
+## 20. 不同路径
 
 `dp[i][j] = dp[i-1][j] + dp[i][j-1] = 到达(i,j)的路径数`
 第一行 = 1，第一列 = 1
@@ -385,7 +565,7 @@ var uniquePaths = function(m, n) {
 };
 ```
 
-## 18. 最小路径和
+## 21. 最小路径和
 
 尤其注意初始化路径：dp[0][0] = grid[0][0]，第一行：累加，第一列：累加
 dp[i][j] = 到(i,j)的最小路径和 = min(上, 左) + 当前值
@@ -411,7 +591,7 @@ var minPathSum = function(grid) {
 };
 ```
 
-## 19. 最长回文子串
+## 22. 最长回文子串
 
 dp[i][j] = s[i..j] 是否是回文
 
@@ -445,7 +625,7 @@ var longestPalindrome = function(s) {
 };
 ```
 
-## 20. 最长公共子序列
+## 23. 最长公共子序列
 
 dp[i][j] = 前i个 & 前j个 的最长公共子序列长度
 相等：dp[i][j] = dp[i-1][j-1] + 1
@@ -473,6 +653,20 @@ var longestCommonSubsequence = function(text1, text2) {
 ```
 
 # 字符串
+## 进制转换
+```js
+var convertToBaseN = function(num, base) {
+  if (num === 0) return '0'
+  const digits = '0123456789ABCDEF'
+  let res = ''
+  while (num > 0) {
+    res = digits[num % base] + res
+    num = Math.floor(num / base)
+  }
+  return res
+};
+```
+
 ## 21. 版本比较
 给你两个 版本号字符串 version1 和 version2 ，请你比较它们。版本号由被点 '.' 分开的修订号组成。修订号的值 是它 转换为整数 并忽略前导零。
 比较版本号时，请按 从左到右的顺序 依次比较它们的修订号。如果其中一个版本字符串的修订号较少，则将缺失的修订号视为 0。
@@ -535,6 +729,257 @@ var longestCommonPrefix = function(strs) {
     return prefix;
 };
 ```
+
+## 字符串相乘
+```js
+var multiply = function(num1, num2) {
+    // 1️⃣ 特殊情况
+    if (num1 === "0" || num2 === "0") return "0";
+
+    const m = num1.length;
+    const n = num2.length;
+
+    // 2️⃣ 结果数组（最多 m + n 位）
+    const res = Array(m + n).fill(0);
+
+    // 3️⃣ 从个位开始（倒序）
+    for (let i = m - 1; i >= 0; i--) {
+        for (let j = n - 1; j >= 0; j--) {
+
+            // 当前位乘积
+            const mul = (num1[i] - '0') * (num2[j] - '0');
+
+            // 对应位置
+            const p1 = i + j;
+            const p2 = i + j + 1;
+
+            // 累加（注意可能之前已经有值）
+            const sum = mul + res[p2];
+
+            // 个位放 p2
+            res[p2] = sum % 10;
+
+            // 十位进位到 p1
+            res[p1] += Math.floor(sum / 10);
+        }
+    }
+
+    // 4️⃣ 去掉前导 0
+    let result = res.join('');
+    if (result[0] === '0') {
+        result = result.slice(1);
+    }
+
+    return result;
+};
+```
+
+
+# 滑动窗口
+## 25. 无重复字符的最长子串(t1)
+```js
+var lengthOfLongestSubstring = function(s) {
+    const n = s.length;
+    let ans = 0, right = -1;
+    const mySet = new Set();  // 存储当前窗口内的字符
+    for (let left = 0; left < n; left ++){
+        // 当left从left-1移动到left时，原左边界s[left-1]不再属于当前窗口，
+        // 需要从occ中移除，确保occ只包含[left, right]
+        if (left !== 0){
+            mySet.delete(s[left-1]);
+        }
+        // left 固定，右指针right尽可能向右，直到遇到重复字符或到达字符串末尾
+        while (right + 1 < n && !mySet.has(s[right+1])){
+            mySet.add(s[right+1]);
+            right++;
+        }
+        ans = Math.max(ans, right - left + 1);
+    }
+    return ans;
+}
+```
+
+## 26. 合并区间
+给出一个区间的集合 intervals，其中每个区间 intervals[i] = [starti, endi]。
+请你合并所有重叠的区间，并返回一个不重叠的区间数组。
+输入：intervals = [[1,3],[2,6],[8,10],[15,18]]
+输出：[[1,6],[8,10],[15,18]]
+
+```js
+var merge = function(intervals) {
+    if (!intervals.length)  return [];
+    intervals.sort((a,b) => a[0] - b[0]);
+    let [start, end] = intervals[0];
+    const res = [];
+
+    for (let i = 1; i < intervals.length; i++) {
+        let [currentStart, currentEnd] = intervals[i];
+        if (currentStart <= end) {
+            end = Math.max(end, currentEnd);     
+        } else {
+            res.push([start, end]);
+            start = currentStart;
+            end = currentEnd;
+        }
+    }
+    res.push([start, end]);
+    return res;
+}
+```
+
+## 27. 长度最小的子数组
+给定一个含有 n 个正整数的数组和一个正整数 target 。
+找出该数组中满足其总和大于等于 target 的长度最小的 子数组 [nums(l), nums(l+1), ..., nums(r-1), nums(r)] ，并返回其长度。如果不存在符合条件的子数组，返回 0 。
+```js
+var minSubArrayLen = function(target, nums) {
+    let left = 0;
+    let sum = 0;
+    let minLen = Infinity;
+
+    for (let right = 0; right < nums.length; right++) {
+        sum += nums[right];
+
+        // 当窗口满足条件时，尽量收缩
+        while (sum >= target) {
+            minLen = Math.min(minLen, right - left + 1);
+            sum -= nums[left];
+            left++;
+        }
+    }
+
+    return minLen === Infinity ? 0 : minLen;
+};
+```
+
+# 栈
+## 28. 有效的括号
+```js
+var isValid = function(s) {
+    const myMap = {
+        ']': '[',
+        '}': '{',
+        ')': '('
+    }
+    const myStack = []; // 栈一定要这样初始化
+    for (let i = 0; i < s.length; i++) {
+        if (s[i] === ']' || s[i] === '}' || s[i] === ')') {
+            if (!myStack.length) return false;
+            const top = myStack.pop();
+            if (myMap[s[i]] !== top) return false;
+        } else {
+            myStack.push(s[i]);
+        }
+    }
+    return myStack.length === 0 ? true : false;
+}
+```
+
+## 29. LRU
+```js
+var LRUCache = function(capacity) {
+    this.capacity = capacity
+    this.map = new Map()
+};
+
+LRUCache.prototype.get = function(key) {
+    if (!this.map.has(key)) return -1;
+    const value = this.map.get(key);
+    this.map.delete(key);
+    this.map.set(key, value);
+    return value;
+};
+
+LRUCache.prototype.put = function(key, value) {
+    if (this.map.has(key)) {
+        this.map.delete(key);
+    } else if (this.map.size >= this.capacity) {
+        this.map.delete(this.map.keys().next().value);
+    }
+    this.map.set(key, value);
+};
+```
+
+## 最小栈
+设计一个支持 push ，pop ，top 操作，并能在常数时间内检索到最小元素的栈。
+实现 MinStack 类:
+- MinStack() 初始化堆栈对象。
+- void push(int val) 将元素val推入堆栈。
+- void pop() 删除堆栈顶部的元素。
+- int top() 获取堆栈顶部的元素。
+- int getMin() 获取堆栈中的最小元素。
+```js
+var MinStack = function() {
+    this.stack = [];
+    this.minStack = [];
+};
+
+MinStack.prototype.push = function(val) {
+    this.stack.push(val);
+    if (this.minStack.length === 0) {
+        this.minStack.push(val);
+    } else {
+        const min = this.minStack[this.minStack.length - 1];
+        this.minStack.push(Math.min(val, min));
+    }
+};
+
+MinStack.prototype.pop = function() {
+    this.stack.pop();
+    this.minStack.pop();
+};
+
+MinStack.prototype.top = function() {
+    return this.stack[this.stack.length - 1];
+};
+
+MinStack.prototype.getMin = function() {
+    return this.minStack[this.minStack.length - 1];
+};
+```
+
+## 字符串解码
+给定一个经过编码的字符串 s，返回它解码后的字符串。
+编码规则为：
+- k[encoded_string]
+- 表示括号中的字符串 encoded_string 会重复 k 次
+- k 保证是正整数
+- 输入字符串总是有效的，没有多余空格
+```
+输入：s = "3[a]2[bc]"
+输出："aaabcbc"
+```
+```js
+var decodeString = function(s) {
+    const numStack = [];
+    const strStack = [];
+    let res = '';
+    let num = 0;
+
+    for (const ch of s) {
+        if (ch >= '0' && ch <= '9') {
+             // 构建数字（处理多位数情况）
+            num = num * 10 + Number(ch);
+        } else if (ch === "["){
+            // 把重复次数压栈
+            numStack.push(num); 
+             // 把当前已经构建的字符串压栈
+            strStack.push(res);
+            num = 0;
+            res = "";
+        } else if (ch === ']') {
+            // 取出最近的重复次数
+            let repeatTimes = numStack.pop();
+             // 取出进入当前括号前的字符串
+            let prevStr = strStack.pop();
+            res = prevStr + res.repeat(repeatTimes);
+        } else {
+            res += ch;
+        }
+    }
+    return res;
+};
+```
+
 
 # 链表
 ## 25. 反转链表
@@ -1167,4 +1612,47 @@ var generateParenthesis = function(n) {
     dfs("", 0, 0);
     return res;
 }
+```
+
+## 52. 复原 IP 地址
+给定一个只包含数字的字符串 s，通过在字符串中插入 . 将其分割成 4 个整数段，判断能否组成一个合法的 IP 地址。
+合法 IP 段要求
+- 每段长度 1~3
+- 不能有前导零，除非这一段就是 0
+- 每段数字范围 0 ~ 255
+
+输入：s = "25525511135"
+输出：["255.255.11.135","255.255.111.35"]
+
+```js
+var restoreIpAddresses = function(s) {
+    const res = [];
+
+    const dfs = (start, path) => {
+        if (path.length === 4 && start === s.length) {
+            res.push(path.join('.'));
+            return;
+        }
+
+        let remaining = s.length - start; // 还剩多少字符没用
+        let segmentsLeft = 4 - path.length; // 还需要分成多少段
+
+        if (remaining < segmentsLeft || remaining > segmentsLeft * 3) {
+            return ;
+        }
+
+        for (let len = 1; len <= 3; len++) {
+            if (start + len > s.length) break;
+            let segment = s.slice(start, start + len);
+            if (segment.length > 1 && segment[0] === '0')   continue;
+
+            if (Number(segment) > 255)  continue;
+            path.push(segment);
+            dfs(start+len, path);
+            path.pop();
+        }
+    }
+    dfs(0, []);
+    return res;
+};
 ```
