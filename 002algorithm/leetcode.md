@@ -139,6 +139,9 @@ var sortArray = function(nums) {
 };
 ```
 
+## 6. 查找第 k 大
+
+
 # 哈希
 
 ## 6. 两数之和
@@ -579,11 +582,130 @@ var removeNthFromEnd = function(head, n) {
 };
 ```
 
+## 28. k 个一组反转链表
+```js
+var reverseKGroup = function(head, k) {
+    let node = head;
+    for (let i = 0; i < k; i++) {
+        if (!node) return head;
+        node = node.next;
+    }
+
+    // 反转前 k 个节点
+    let prev = null;
+    let curr = head;
+
+    for (let i = 0; i < k; i++) {
+        let next = curr.next;
+        curr.next = prev;
+        prev = curr;
+        curr = next;
+    }
+
+    // 执行完后：prev 是这一组反转后的新头，head 变成了这一组反转后的尾
+    // 递归处理剩余链表
+    head.next = reverseKGroup(curr, k);
+
+    // 返回新头
+    return prev;
+
+}
+```
+
+## 29. 相交链表
+```js
+var getIntersectionNode = function(headA, headB) {
+    if (headA == null || headB = null)  return null;
+    let pA = headA, pB = headB;
+    while(pA !== pB) {
+        pA = pA === null ? headB : pA.next;
+        pB = pB === null ? headA : pB.next;
+    }
+    return pA;
+}
+```
+
+## 30. 两数相加
+```js
+var addTwoNumbers = function(l1, l2) {
+    let dummy = new ListNode(0);
+    let cur = dummy;
+
+    let carry = 0;
+
+    while (l1 || l2 || carry) {
+        const val1 = l1 ? l1.val : 0;
+        const val2 = l2 ? l2.val : 0;
+
+        const sum = val1 + val2 + carry;
+
+        carry = Math.floor(sum / 10);
+        const newVal = sum % 10;
+
+        cur.next = new ListNode(newVal);
+        cur = cur.next;
+
+        if (l1) l1 = l1.next;
+        if (l2) l2 = l2.next;
+    }
+
+    return dummy.next;
+};
+```
+
+## 31. 重排链表
+给定一个单链表 L0 → L1 → ... → Ln-1 → Ln，
+请将其重新排列为：
+L0 → Ln → L1 → Ln-1 → L2 → Ln-2 → ...
+
+- 找中点：用快慢指针找到链表中间
+- 反转后半段：把后半段链表原地反转
+- 合并两个链表：交替合并
+
+
+```js
+var reorderList = function(head) {
+    if (!head || !head.next)    return;
+
+    // 1. 找中点
+    let slow = head, fast = head;
+    while(fast && fast.next) {
+        slow = slow.next;
+        fast = fast.next.next;
+    }
+
+    // 2. 反转后半段
+    let pre = null;
+    let curr = slow.next;
+    slow.next = null;
+    while (curr) {
+        const next = curr.next;
+        curr.next = prev;
+        prev = curr;
+        curr = next;
+    }
+
+    // 3. 合并两个链表
+    let first = head;
+    let second = prev;
+
+    while (second) {
+        const temp1 = first.next;
+        const temp2 = second.next;
+        first.next = second;
+        second.next = temp1;
+        first = temp1;
+        second = temp2;
+    }
+}
+```
+
+
 # 二叉树
 
 ## DFS 遍历
 
-### 23. 中序 / 前序 / 后序通用模板
+### 32. 中序 / 前序 / 后序通用模板
 ```js
 const dfs = (root) => {
     if (!root) return;
@@ -598,7 +720,7 @@ const dfs = (root) => {
 };
 ```
 
-### 24. 二叉树的中序遍历
+### 33. 二叉树的中序遍历
 ```js
 var inorderTraversal = function(root) {
     const res = [];
@@ -620,7 +742,7 @@ var inorderTraversal = function(root) {
 - `path / sum / state` 作为递归参数向下传
 - 到叶子节点时做一次结算
 
-### 25. 路径总和
+### 34. 路径总和
 ```js
 var hasPathSum = function(root, targetSum) {
     if (!root) return false;
@@ -632,7 +754,7 @@ var hasPathSum = function(root, targetSum) {
 };
 ```
 
-### 26. 二叉树的所有路径
+### 35. 二叉树的所有路径
 ```js
 var binaryTreePaths = function(root) {
     const res = [];
@@ -654,7 +776,7 @@ var binaryTreePaths = function(root) {
 };
 ```
 
-### 27. 求根到叶子节点数字之和
+### 36. 求根到叶子节点数字之和
 ```js
 var sumNumbers = function(root) {
     let total = 0;
@@ -684,7 +806,7 @@ var sumNumbers = function(root) {
 - 先拿到左右子树的信息
 - 再在当前节点做汇总
 
-### 28. 二叉树的最大深度
+### 37. 二叉树的最大深度
 ```js
 var maxDepth = function(root) {
     if (!root) return 0;
@@ -694,7 +816,7 @@ var maxDepth = function(root) {
 };
 ```
 
-### 29. 二叉树的最大直径
+### 38. 二叉树的最大直径
 ```js
 var diameterOfBinaryTree = function(root) {
     let res = 0;
@@ -712,7 +834,7 @@ var diameterOfBinaryTree = function(root) {
 };
 ```
 
-### 30. 二叉树的最近公共祖先
+### 39. 二叉树的最近公共祖先
 ```js
 var lowestCommonAncestor = function(root, p, q) {
     if (!root || root === p || root === q) return root;
@@ -727,7 +849,7 @@ var lowestCommonAncestor = function(root, p, q) {
 
 ## 树结构变换
 
-### 31. 反转二叉树
+### 40. 反转二叉树
 ```js
 var flipTree = function(root) {
     if (!root) return null;
@@ -738,7 +860,7 @@ var flipTree = function(root) {
 };
 ```
 
-### 32. 对称二叉树
+### 41. 对称二叉树
 ```js
 var checkSymmetricTree = function(root) {
     if (!root) return true;
@@ -754,7 +876,7 @@ var checkSymmetricTree = function(root) {
 };
 ```
 
-### 33. 从前序与中序遍历序列构造二叉树
+### 42. 从前序与中序遍历序列构造二叉树
 ```js
 var buildTree = function(preorder, inorder) {
     if (!preorder.length || !inorder.length) return null;
@@ -778,7 +900,7 @@ var buildTree = function(preorder, inorder) {
 
 这组题本质上都能抽成同一个 BFS 框架，只是“每层怎么取结果”不一样。
 
-### 34. 基础层序遍历
+### 43. 基础层序遍历
 ```js
 var levelOrder = function(root) {
     if (!root) return [];
@@ -804,7 +926,7 @@ var levelOrder = function(root) {
 };
 ```
 
-### 35. 锯齿形层次遍历
+### 44. 锯齿形层次遍历
 ```js
 var zigzagLevelOrder = function(root) {
     if (!root) return [];
@@ -833,7 +955,7 @@ var zigzagLevelOrder = function(root) {
 };
 ```
 
-### 36. 二叉树的右视图
+### 45. 二叉树的右视图
 ```js
 var rightSideView = function(root) {
     if (!root) return [];
@@ -855,4 +977,194 @@ var rightSideView = function(root) {
 };
 ```
 
+# 回溯
+## 46. 全排列
+```js
+var permute = function(nums) {
+    const n = nums.length;
+    const res = [];
+    const visited = Array(n).fill(false);
 
+    const backtrack = (path) => {
+        if (path.length === n) {
+            res.push([...path]);
+            return;
+        }
+
+        for (let i = 0; i < n; i++) {
+            if (!visited[i]) {
+                visited[i] = true;
+                path.push(nums[i]);
+                backtrack(path)
+                path.pop();
+                visited[i] = false;
+            }
+        }
+    }
+    backtrack([]);
+    return res;
+};
+```
+
+## 47. 子集
+给你一个整数数组 nums ，数组中的元素 互不相同 。返回该数组所有可能的子集（幂集）。
+解集 不能 包含重复的子集。你可以按 任意顺序 返回解集。
+
+```js
+var subsets = function(nums) {
+    const res = [];
+    const dfs = (start, path) => {
+        res.push([...path]);
+
+        for (let i = start; i < nums.length; i++) {
+            path.push(nums[i]);
+            dfs(i+1, path);
+            path.pop();
+        }
+    }
+    dfs(0, []);
+    return res;
+};
+```
+
+## 48. 组合总和
+给定一个候选人编号的集合 candidates 和一个目标数 target ，找出 candidates 中所有可以使数字和为 target 的组合。
+candidates 中的每个数字在每个组合中只能使用 一次 。
+注意：解集不能包含重复的组合。 
+输入: `candidates = [10,1,2,7,6,1,5], target = 8`,
+输出:
+```
+[
+[1,1,6],
+[1,2,5],
+[1,7],
+[2,6]
+]
+```
+
+```js
+var combinationSum2 = function(candidates, target) {
+    const res = [];
+    candidates.sort((a,b) => a-b);
+
+    const dfs = (start, path, sum) => {
+        if (sum === target) {
+            res.push([...path]);
+            return;
+        }
+        
+        if (sum > target)   return;
+
+        for (let i = start; i < candidates.length; i++) {
+            if (i > start && candidates[i] === candidates[i-1])     continue;
+
+            path.push(candidates[i]);
+            dfs(i+1, path, sum + candidates[i]);
+            path.pop();
+        }
+    }
+    dfs(0, [], 0);
+    return res;
+};
+```
+
+## 49. 岛屿数量
+给你一个由 '1'（陆地）和 '0'（水）组成的二维网格 grid，请你计算网格中岛屿的数量。
+岛屿由水平方向或竖直方向相邻的陆地连接形成。
+你可以假设网格的四周被水包围。
+```
+输入：
+grid = [
+  ["1","1","1","1","0"],
+  ["1","1","0","1","0"],
+  ["1","1","0","0","0"],
+  ["0","0","0","0","0"]
+]
+
+输出：1
+```
+
+```js
+var numIslands = function(grid) {
+    const m = grid.length;
+    const n = grid[0].length;
+    let count = 0;
+
+    const dfs = (i, j) => {
+        if (i < 0 || j < 0 || i >= m || j >= n || grid[i][j] === '0') {
+            return;
+        }
+
+        grid[i][j] = '0';
+        dfs(i+1, j);
+        dfs(i-1, j);
+        dfs(i, j+1);
+        dfs(i, j-1);
+    }
+
+    for (let i = 0; i < m; i++) {
+        for (let j = 0; j < n; j++) {
+            if (grid[i][j] === '1') {
+                count++;
+                dfs(i, j);
+            }
+        }
+    }
+
+    return count;
+}
+```
+
+## 50. 岛屿的最大面积
+```js
+var maxAreaOfIsland = function(grid) {
+    const m = grid.length;
+    const n = grid[0].length;
+    let res = 0;
+    
+    const dfs = (i, j) => {
+        if (i < 0 || i >= m || j < 0 || j >= n || grid[i][j] === 0) {
+            return 0;
+        }
+        grid[i][j] = 0;
+        return 1 + dfs(i-1, j) + dfs(i+1, j) + dfs(i, j-1) + dfs(i, j+1);
+    }
+
+    for (let i = 0; i < m; i++) {
+        for (let j = 0; j < n; j++) {
+            if (grid[i][j] === 1) {
+                res = Math.max(res, dfs(i,j));
+            }
+        }
+    }
+    return res;
+}
+```
+
+## 51. 括号生成
+每一步可以选择放左括号或右括号，但需要满足两个约束：
+- 左括号数量不能超过 n
+- 右括号数量不能超过左括号
+- 当字符串长度达到 2n 时说明生成了一个合法括号序列。
+```js
+var generateParenthesis = function(n) {
+    const res = [];
+    const dfs = (str, left, right) => {
+        if (str.length === 2 * n) {
+            res.push([...str]);
+            return;
+        }
+
+        if (left < n) {
+            dfs(str + '(', left + 1, right);
+        }
+
+        if (right < left) {
+            dfs(str + ')', left, right + 1);
+        }
+    }
+
+    dfs("", 0, 0);
+    return res;
+}
+```
