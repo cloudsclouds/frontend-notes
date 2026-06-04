@@ -478,10 +478,27 @@ const data = JSON.parse(localStorage.getItem("user"));
 ```
 
 应用场景：
-- 标记用户与跟踪用户行为的情况，推荐使用cookie
-- 适合长期保存在本地的数据（令牌），推荐使用localStorage
+-  cookie：早期用于在**客户端存储少量数据**，以及**维持用户登录状态** （比如存储 session_id）。
+- localStorage：适合长期保存在本地的数据（不适合存储敏感信息，但可以与 token 鉴权结合，比如保存 JWT）；可被同源脚本读取，需防 XSS。
 - 敏感账号一次性登录，推荐使用sessionStorage
 - 存储大量数据的情况、在线文档（富文本编辑器）保存编辑历史的情况，推荐使用indexedDB。
+
+### 21.1 跨域请求能带 cookie 吗？
+默认不能，必须同时满足：
+1. 前端设置 withCredentials / credentials
+2. 服务端允许 Access-Control-Allow-Credentials
+3. cookie 设置 SameSite=None + Secure
+
+### 21.2 Cookie 与 Session 的区别
+Cookie 数据存在**客户端**，Session 数据存在**服务器**；Cookie 可**被篡改**，Session 更**安全**。
+
+Session：存储在**服务器端**的一种用户状态管理方式。用户第一次登录后，服务器会创建一个 session 并返回对应的 session_id 给客户端。客户端通常用 Cookie 存这个 session_id，之后请求携带它，服务器就能找到该用户的 session。
+
+### 21.3 Cookie 的属性
+1. Expires 和 Max-Age 用于控制过期时间
+2. Secure 表示只在 HTTPS 下传输
+3. HttpOnly 防止 JavaScript 访问提升安全性，**不会通过可会断脚本访问**，只有http请求会携带这个cookie，帮助防止跨站脚本攻击。
+4. SameSite 用于控制跨站请求是否携带 Cookie，防止 CSRF 攻击。
 
 ## 22. for...in和for...of的区别
 for...in 主要用于遍历对象的属性名，返回的是 key，并且会遍历对象原型链上的可枚举属性，因此不推荐用于遍历数组。需要使用 `obj.hasOwnProperty`
