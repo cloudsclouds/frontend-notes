@@ -196,6 +196,7 @@ splice(a, b, c...n)：灵活操作数组（删除 / 添加 / 替换）
 
 5. 排序
 - sort( )：对数组元素排序
+sort 会直接修改原数组并返回自身；toSorted 会返回一个排序后的新数组，不会影响原数组，因此更符合函数式编程思想。
 
 ### 不改变原数组的方法
 这类方法不会修改原数组，而是返回一个新的结果（新数组 / 字符串 / 布尔值等）。
@@ -267,6 +268,14 @@ a instanceof Number //false
 基本数据类型存储在栈中；
 引用类型的对象存储于堆中，每个堆内存对象都有对应的引用地址指向它，引用地址存放在栈中。
 
+### 10.1 如何判断一个对象是空对象？
+如果只是判断对象自身是否有可枚举属性，最常见的方法是： `Object.keys(obj).length === 0`。
+如果需要兼容 Symbol 和不可枚举属性，会使用 Reflect.ownKeys(obj).length === 0。
+
+### 10.2 Object.defineProperty 和 Proxy 的区别
+两者都可以实现数据劫持，但能力不同：Object.defineProperty 是 Vue2 的实现方案；Proxy 是 Vue3 的实现方案。
+
+defineProperty 监听的是属性，Proxy 监听的是对象；Proxy 能监听新增、删除和数组变化；defineProperty 需要递归遍历，Proxy 是懒代理，访问时才触发，性能更好。因此 Vue3 最终选择了 Proxy。
 
 ## 11. JavaScript字符串的常用方法有哪些？
 concat：用于将一个或多个字符串拼接成一个新字符串
@@ -489,15 +498,24 @@ for...of 用于遍历可迭代对象，返回的是元素值，底层基于 Symb
 
 - WeakMap 是一种特殊的 Map，key 必须是对象，并且是弱引用，当对象没有其他引用时会被垃圾回收，常用于存储私有数据或避免内存泄漏。
 
-## 24. 
-如何判断一个对象是空对象？
-Object 和其他数据类型的本质区别是什么？
-Object.defineProperty 和 Proxy 的区别是什么？
-JavaScript 模块化机制是什么？ESM 如何运行？
-JS 模块导入时会不会执行 IIFE？
-class 和 function 构造函数的区别是什么？
-typeof null 为什么是 object？
-toSorted 和 sort 的代码输出结果
+## 24. class 和 function 构造函数的区别是什么？
+class 本质上是 function 的语法糖。
+区别主要有四个。
+1. 必须 new：
+class：Person() 会报错：Class constructor cannot be invoked without 'new'；
+function：Person() 允许直接调用。
+
+2. 方法是否可枚举
+class：不可枚举，也就是不会被 for...in、Object.keys() 等遍历出来；
+构造函数：Person.prototype.say = function(){} 默认可枚举。
+
+3.严格模式
+class 自动开启 strict mode；
+function 不会自动开启。
+
+4. 提升行为
+函数声明：foo()，unction foo(){} 可以；
+class：new Person()，在声明前访问：ReferenceError 存在暂时性死区。
 
 
 

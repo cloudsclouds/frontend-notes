@@ -776,7 +776,7 @@ var multiply = function(num1, num2) {
 
 
 # 滑动窗口
-## 25. 无重复字符的最长子串(t1)
+## 25. 无重复字符的最长子串
 ```js
 var lengthOfLongestSubstring = function(s) {
     const n = s.length;

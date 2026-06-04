@@ -5,21 +5,137 @@ Vue 的生命周期分为创建、挂载、更新、销毁四个阶段。
 
 创建阶段有 beforeCreate 和 created，beforeCreate 时 data 和 methods 还未初始化，created 时已初始化，可以访问响应式数据，但是页面 DOM 还没有生成。
 
-挂载阶段有 beforeMount 和 mounted，beforeMount 模板已经编译成虚拟 DOM，但真实 DOM 还没有挂载到页面；mounted 是 DOM 挂载完成，适合操作 DOM。
+挂载阶段有 beforeMount 和 mounted，beforeMount 模板已经编译成虚拟 DOM，但真实 DOM 还没有挂载到页面；mounted 是 DOM 挂载完成，适合操作 DOM。在 `mounted` 中发请求，主要是因为此时组件已经完成挂载，DOM 已可用，适合进行依赖页面状态的初始化操作。
 
 更新阶段有 beforeUpdate 和 updated，beforeUpdate 是数据更新前，updated 是 DOM 更新后。
 
 销毁阶段有 beforeDestroy 和 destroyed，beforeDestroy 可清除定时器，移除事件监听，destroyed 时组件完全销毁。
 
-Vue3 还的名字有变化，比如
-beforeDestroy → beforeUnmount
-destroyed → unmounted
-，还新增了 setup、onBeforeMount 等 Composition API 生命周期钩子。
+Vue3 保留了生命周期的核心逻辑，但做了以下调整：
+
+1. `beforeCreate` 和 `created` 被 `setup` 函数替代；
+
+2. 部分钩子名称前缀改为 `on`：onBeforeMount、onMounted、onBeforeUpdate、onUpdated 等 Composition API 生命周期钩子。
+
+3. beforeDestroy → beforeUnmount、destroyed → unmounted，更直观表达 “卸载” 含义
 
 ## 2. 父子组件生命周期顺序
-父组件先创建，子组件先挂载，最后父组件挂载完成；因为父组件要等子组件渲染结束之后，自己才算真正挂载完成。
 
-父组件销毁时，会先销毁子组件，最后再销毁父组件；父组件先进入销毁流程，但会先把自己的子组件全部销毁掉，最后自己才真正销毁完成。
+创建时，父组件先创建实例，然后创建子组件，
+挂载时，父组件触发更新（父 beforeMount 先执行），子组件先完成 mounted，最后父组件 mounted。
+更新阶段，父组件触发更新（父 beforeUpdate 先执行），然后子组件更新完成（子updated 先完成），最后父组件 updated；
+销毁时，父 beforeDestroy 先执行，子 destroyed 先完成，父组件最后 destroyed。
+
+本质原因是**子组件依赖父组件的渲染结果**，必须等**子组件完成后父组件才算真正完成。**
+
+## 3. Vue2 vs Vue3
+
+- **响应式系统**：Vue2 使用 `Object.defineProperty`，无法监听新增/删除属性，性能稍低；Vue3 改用 `Proxy`，支持深层对象和数组监听。
+- **Options API vs Composition API**：
+  - Vue2 的主要写法是 Options API，按照 data、methods、watch 等选项来组织代码，但当组件变大时，相关逻辑会被拆散；
+  - Vue3 提供更灵活的代码组织方式，替代 Options API 的逻辑分散问题，通过 setup 函数按功能逻辑组织代码。
+- **性能优化**：Vue2 Diff 算法优化有限；Vue3 通过静态提升（Static Hoisting）和 Patch Flag 减少虚拟 DOM 对比开销。
+- **TypeScript 支持**：Vue3 的类型推导和工程化体验更好。
+
+### 3.2 ref vs reactive
+
+- `ref` 用于创建响应式数据，既可以包基本类型，也可以包对象类型。其中，对象类型内部本质上也是调用了`reactive`函数，也会转成响应式对象。
+
+- `ref` 的本质是一个带 `value` 属性的响应式对象；通`Object.defineProperty` 的 `getter/setter` 拦截 `.value`。
+
+- `reactive` 用于创建对象类型的响应式数据，本质上是通过 `Proxy` 返回一个代理对象。
+
+- `reactive` 支持深层次响应式，重新赋值一个新对象时会失去响应式，需要用 `Object.assign` 做整体替换；解构或传参会丢失响应式；
+
+### 3.3 `toRef` 与 `toRefs`
+
+`toRef` 和 `toRefs` 的作用，是把响应式对象中的属性转换成独立的 `ref` 对象，解构响应式对象时，避免丢失响应式。
+
+- `toRef`：一次转换一个属性。
+- `toRefs`：可以批量转换多个属性。
+
+```js
+// 数据
+let person = reactive({name:'张三', age:18, gender:'男'})
+
+// 通过toRefs将person对象中的n个属性批量取出，且依然保持响应式的能力
+let {name,gender} =  toRefs(person)
+
+// 通过toRef将person对象中的gender属性取出，且依然保持响应式的能力
+let age = toRef(person,'age')
+```
+
+## 4. `computed` 计算属性 vs `watch` 监听 vs `watchEffect`
+
+`computed` 是用来根据已有数据计算新数据的，底层借助了object.defineproperty方法提供的getter和setter实现依赖追踪，而且它有缓存机制。只要依赖不变，多次访问也不会重复算。它更适合做派生值，而不是副作用逻辑。
+
+具体来说，computed 内部通过一个 lazy 的 effect 来管理。
+- 依赖收集（track）
+- dirty 标记（是否需要重新计算）
+- lazy effect（懒执行）
+
+`watch` 是明确监视某个数据的变化，适合做副作用，比如请求接口。它可以监视 `ref`、`reactive`、getter 函数和数组，支持深度监听和立即执行。
+
+`watch` 的参数一般包括：
+- 第一个参数：被监视的数据
+- 第二个参数：回调函数
+- 第三个参数：配置对象，如 `deep`、`immediate`
+
+`watchEffect` 是立即执行一个函数，并自动追踪函数中用到的所有响应式依赖，依赖变化时自动重新执行，不用明确指定。
+
+
+## 5. 组件通信
+1. 父子组件通信是 Vue 中最常见的通信方式。
+
+父组件通过`props`属性向子组件传值，子组件通过 `defineProps` 接收。
+
+- `props` 是单向数据流
+- 子组件不应该直接修改 `props`
+- 如果需要修改，应该通过 `emit` 通知父组件修改。
+
+子组件通过 `defineEmits` 注册事件，然后用 `emit('事件名', 参数)` 通知父组件。
+
+2. 兄弟通信：状态提升到共同父组件，或使用事件总线（Vue2 常见）
+3. 跨层级通信：`provide` / `inject`
+4. 全局状态管理：Pinia / Vuex
+5. 直接访问子组件：`ref` + `defineExpose`
+
+## 6. 动态组件与异步组件
+动态组件：使用 `<component :is="componentName">` 动态渲染不同组件。
+异步组件：使用 `defineAsyncComponent` 或动态 `import` 按需加载组件。
+
+## 7. 插槽（Slots）
+插槽用于内容分发，让父组件向子组件传递模板结构，而不是只传数据。
+
+1. 默认插槽
+- 子组件中使用 `<slot>`接收父组件内容
+- 父组件传入默认内容
+
+2. 具名插槽
+- 用 `name` 区分不同插槽位置
+- 父组件通过 `#header`、`#footer` 等指定内容，适用于组件内部有多个插入区域
+
+3. 作用域插槽
+- 子组件把数据暴露给父组件
+- 父组件自定义渲染方式
+- 常用于表格、列表等场景
+
+## 8. 指令、渲染与模板机制
+### 8.1 `v-if` 与 `v-show` 的区别
+`v-if`
+- 条件成立才渲染
+- 切换时会创建或销毁 DOM
+- 初次渲染开销较小
+- 适合不频繁切换的场景
+
+`v-show`
+- 元素始终渲染在 DOM 中
+- 通过 `display: none` 控制显示隐藏，因此元素不会占据布局空间。当切换时会触发重排和重绘。
+- 切换成本低
+- 适合频繁切换场景
+
+补充：visibility: hidden 只是让元素不可见，但仍然占据原有布局空间，只会触发重绘，不会触发重排，因此切换成本更低。
+
 
 ## 1. Vue 核心概览
 
@@ -122,481 +238,6 @@ setup() {
 </script>
 ```
 
-### 1.3 Vue2 与 Vue3 的区别
-
-- **响应式系统**：Vue2 使用 `Object.defineProperty`，无法监听新增/删除属性，性能稍低；Vue3 改用 `Proxy`，支持深层对象和数组监听。
-- **Options API vs Composition API**：
-  - Vue2 的主要写法是 Options API，按照 data、methods、watch 等选项来组织代码，但当组件变大时，相关逻辑会被拆散；
-  - Vue3 提供更灵活的代码组织方式，替代 Options API 的逻辑分散问题，通过 setup 函数按功能逻辑组织代码。
-- **性能优化**：Vue2 Diff 算法优化有限；Vue3 通过静态提升（Static Hoisting）和 Patch Flag 减少虚拟 DOM 对比开销。
-- **TypeScript 支持**：Vue3 的类型推导和工程化体验更好。
-
----
-
-## 2. 组合式 API、响应式基础与原理
-
-### 2.1 `ref`
-
-`ref` 用于创建响应式数据，既可以包基本类型，也可以包对象类型。
-
-- **基本类型**：如字符串、数字、布尔值等。
-- **对象类型**：内部本质上也是调用了`reactive`函数，也会转成响应式对象。
-
-特点：
-
-- JS 中访问需要 `.value`。
-- 模板中会自动解包，直接写变量名即可。
-- `ref` 的核心是它返回一个带 `value` 属性的响应式对象。
-
-适用场景：
-
-- 单值数据。
-- 表单字段。
-- 需要整体替换的数据。
-
-### 2.2 `reactive`
-
-`reactive` 用于创建对象类型的响应式数据，本质上是通过 `Proxy` 返回一个代理对象。
-
-特点：
-
-- 只能接收对象类型，基本类型不能直接用 `reactive`。
-- 支持深层次响应式。
-- 直接通过属性访问，不需要 `.value`。
-- 重新赋值一个新对象时会失去响应式，需要用 `Object.assign` 做整体替换。
-
-适用场景：
-
-- 表单对象。
-- 结构较深的数据。
-- 多字段对象状态。
-
-### 2.3 `ref` 与 `reactive` 对比
-
-1. `ref` 可以定义基本类型，也可以定义对象类型，本质是一个对象；通`Object.defineProperty` 的 `getter/setter` 拦截 `.value`，需要通过 `.value` 访问。使用场景：单值、简单类型。
-2. `reactive` 只能定义对象类型，通过 **Proxy 拦截属性访问**；reactive 可以直接访问属性。使用场景：对象/数组。
-3. **重新赋值**：`reactive` 重新赋值会丢失响应式；`ref` 不会。
-  **解构传参**：`reactive` 解构或传参会丢失响应式；`ref` 传递整个容器时保持响应式。
-
-使用原则：
-
-1. 基本类型必须使用 `ref`。
-2. 响应式对象且层级不深时，`ref` 和 `reactive` 都可以。
-3. 响应式对象且层级较深时，推荐使用 `reactive`。
-4. 表单相关数据推荐使用 `reactive`。
-
-### 2.4 `toRef` 与 `toRefs`
-
-`toRef` 和 `toRefs` 的作用，是把响应式对象中的属性转换成独立的 `ref` 对象。
-
-- `toRef`：一次转换一个属性。
-- `toRefs`：可以批量转换多个属性。
-
-常见用途：
-
-- 解构响应式对象时，避免丢失响应式。
-- 把响应式对象中的部分字段单独拿出来使用。
-
-示例理解：
-
-- `toRefs(person)` 会把 `person` 里的每个键值对都转成 `ref`。
-- `toRef(person, 'age')` 则只把 `age` 这个属性转成 `ref`。
-
-```js
-// 数据
-let person = reactive({name:'张三', age:18, gender:'男'})
-
-// 通过toRefs将person对象中的n个属性批量取出，且依然保持响应式的能力
-let {name,gender} =  toRefs(person)
-
-// 通过toRef将person对象中的gender属性取出，且依然保持响应式的能力
-let age = toRef(person,'age')
-```
-
-### 2.5 `computed` 计算属性
-
-`computed` 是用来根据已有数据计算新数据的，而且它有缓存。只要依赖不变，多次访问也不会重复算。它更适合做派生值，而不是副作用逻辑。
-
-底层借助了object.defineproperty方法提供的getter和setter
-
-特点：
-
-- 有缓存机制。
-- 依赖不变时不会重复计算。
-- 只有依赖变化后才会重新求值。
-- 可以是只读，也可以通过 `get` / `set` 进行读写。
-
-两种写法：
-
-1. **只读计算属性**
-2. **可读可写计算属性**
-
-`computed` 的本质是基于依赖追踪和缓存机制实现的。
-
-**computed 内部通过一个 lazy 的 effect 来管理**
-
-  1️⃣ 依赖收集（track）
-
-  2️⃣ dirty 标记（是否需要重新计算）
-
-  3️⃣ lazy effect（懒执行）
-
-### 2.6 `watch` 监听
-
-`watch` 是明确监视某个数据的变化，适合做副作用，比如请求接口。它可以监视 `ref`、`reactive`、getter 函数和数组，支持深度监听和立即执行。
-
-Vue3 中 `watch` 主要可以监视四类数据：
-
-1. `ref` 定义的数据
-2. `reactive` 定义的数据
-3. 函数返回的值（getter）
-4. 包含上述内容的数组
-
-`watch` 的参数一般包括：
-
-- 第一个参数：被监视的数据
-- 第二个参数：回调函数
-- 第三个参数：配置对象，如 `deep`、`immediate`
-
-### 2.7  `watch` 与 `computed` 的区别
-
-### `computed`
-
-- 作用：生成派生值
-- 有缓存
-- 只有依赖变化后才重新计算
-- 适合模板展示或逻辑判断
-
-### `watch`
-
-- 作用：监听变化并执行副作用
-- 没有缓存
-- 适合请求接口、异步处理、联动逻辑
-- 支持立即执行和深度监听
-
-### 2.8 监视 `ref` 定义的基本类型
-
-#### 详细解答版
-
-监视 `ref` 基本类型时，直接写变量名即可，监视的是其 `value` 的变化。
-
-特点：
-
-- 不需要写 `.value`
-- 可通过返回的停止函数停止监听
-- 适合简单状态变化监控
-
-### 2.9 监视 `ref` 定义的对象类型
-
-#### 详细解答版
-
-监视 `ref` 对象类型时，直接写变量名，默认监视的是整个对象的地址值。
-
-注意：
-
-- 修改对象内部属性时，需要手动开启深度监听。
-- 若修改的是对象内部属性，`newValue` 和 `oldValue` 可能是同一个对象。
-- 若整体替换对象，`newValue` 和 `oldValue` 才是不同对象。
-
-### 2.10 监视 `reactive` 定义的对象类型
-
-`reactive` 定义的对象默认就是深度监视的，不能像 `ref` 那样直接关闭深度监听。
-
-特点：
-
-- 修改对象内部属性时会被直接监听到。
-- 适合复杂对象状态追踪。
-- 重新赋值新对象会丢失响应式，需要用 `Object.assign` 做整体替换。
-
-### 2.11 监视对象中的某个属性
-
-当监视 `ref` 或 `reactive` 中某个属性时，通常推荐写成函数形式。
-
-规则：
-
-- 若被监视属性是基本类型，必须写函数，如 `() => person.name`
-- 若被监视属性本身还是对象类型，可以直接写，也可以写函数，但推荐写函数
-- 如果想监听对象内部变化，需要开启深度监听
-
-### 2.12 监视多个数据
-
-`watch` 支持数组形式，同时监视多个来源。
-
-可以监视：
-
-- 多个 `ref`
-- `getter` + `reactive`
-- 多个属性组合
-
-适用于多个数据共同决定同一个副作用的场景。
-
-### 2.13 `watchEffect`
-
-`watchEffect` 是立即执行一个函数，并自动追踪函数中用到的所有响应式依赖，依赖变化时自动重新执行。
-
-与 `watch` 的区别：
-
-- `watch`：要明确指定监视什么
-- `watchEffect`：不用明确指定，函数里用了什么就监听什么
-- `watch` 更适合明确的数据监听
-- `watchEffect` 更适合依赖自动收集的副作用场景
-
-### 2.14 `watch` 与 `watchEffect` 的区别
-
-`watch` 需要明确指定监听目标；`watchEffect` 不需要明确指定，函数里用到的响应式数据都会被自动收集。
-
-区别：
-
-- `watch`：更精确，能拿到新旧值
-- `watchEffect`：更省事，自动追踪依赖
-
----
-
-## 3. 模板引用、组件暴露与组件通信
-
-### 3.1 模板引用：`ref` 属性
-
-`ref` 属性用于注册模板引用，可以用在普通 DOM 标签上，也可以用在组件标签上。
-
-### 用在普通 DOM 标签上
-
-- 获取的是 DOM 节点
-- 常用于操作焦点、取值、尺寸、文本内容等
-
-### 用在组件标签上
-
-- 获取的是子组件实例对象
-- 需要配合 `defineExpose` 暴露子组件中的数据或方法
-
-`defineExpose` 的作用就是把子组件内部指定的内容暴露给父组件使用。
-
-### 3.2 `props` 与 `emit` 组件通信
-
-父子组件通信是 Vue 中最常见的通信方式。
-
-### 父传子：`props`
-
-父组件通过属性向子组件传值，子组件通过 `defineProps` 接收。
-
-注意：
-
-- `props` 是单向数据流
-- 子组件不应该直接修改 `props`
-- 如果需要修改，应该通过 `emit` 通知父组件修改，或者本地拷贝一份
-
-### 子传父：`emit`
-
-子组件通过 `defineEmits` 注册事件，然后用 `emit('事件名', 参数)` 通知父组件。
-
-这种模式遵循“数据自上而下，事件自下而上”的原则。
-
-### 3.3 组件间通信
-
-Vue 常见组件通信方式包括：
-
-1. **父子通信**：`props` / `emit`
-2. **兄弟通信**：状态提升到共同父组件，或使用事件总线（Vue2 常见）
-3. **跨层级通信**：`provide` / `inject`
-4. **全局状态管理**：Pinia / Vuex
-5. **直接访问子组件**：`ref` + `defineExpose`
-
-### 3.4 兄弟组件通信、跨层级通信与全局状态
-
-#### 兄弟通信
-
-- 通过共同父组件中转状态
-- 或使用 EventBus（Vue2 中常见）
-
-#### 跨层级通信
-
-- 通过 `provide` 提供数据，后代用 `inject` 注入
-- 注意：若要响应式，建议传递 `ref` 或 `reactive`
-
-#### 全局状态管理
-
-- Vue3 推荐 Pinia
-- Vue2 常用 Vuex
-
-#### 直接访问子组件
-
-- 父组件通过 `ref` 获取子组件实例
-- 子组件通过 `defineExpose` 暴露方法与状态
-
-### 3.5 动态组件与异步组件
-
-### 动态组件
-
-使用 `<component :is="componentName">` 动态渲染不同组件。
-
-使用场景：
-
-- Tab 切换
-- 步骤表单
-- 条件渲染不同子模块
-
-### 异步组件
-
-使用 `defineAsyncComponent` 或动态 `import` 按需加载组件。
-
-优点：
-
-- 减少首屏包体积
-- 提高加载效率
-- 更适合大型页面、弹窗、路由懒加载
-
-### 3.6 插槽（Slots）
-
-插槽用于内容分发，让父组件向子组件传递模板结构，而不是只传数据。
-
-### 默认插槽
-
-- 子组件中使用 `<slot>`接收父组件内容
-- 父组件传入默认内容
-
-### 具名插槽
-
-- 用 `name` 区分不同插槽位置
-- 父组件通过 `#header`、`#footer` 等指定内容，适用于**组件内部有多个插入区域**
-
-### 作用域插槽
-
-- 子组件把数据暴露给父组件
-- 父组件自定义渲染方式
-- 常用于表格、列表等场景
-
----
-
-## 4. 生命周期与自定义 Hook
-
-### 4.1 生命周期
-
-生命周期是 Vue 组件从创建到卸载过程中经历的一系列阶段。
-
-整体分为四类：
-
-1. 创建：组件实例建立，响应式数据与配置开始初始化
-2. 挂载：模板渲染到真实 DOM，页面首次可见
-3. 更新：数据变化导致虚拟 DOM 和真实 DOM 更新
-4. 销毁 / 卸载：组件退出页面，清理副作用、事件、定时器等资源
-
-### Vue2 生命周期
-
-- 创建阶段：`beforeCreate`、`created`
-- 挂载阶段：`beforeMount`、`mounted`
-- 更新阶段：`beforeUpdate`、`updated`
-- 销毁阶段：`beforeDestroy`、`destroyed`
-
-### Vue3 生命周期
-
-- 创建阶段：`setup`
-- 挂载阶段：`onBeforeMount`、`onMounted`
-- 更新阶段：`onBeforeUpdate`、`onUpdated`
-- 卸载阶段：`onBeforeUnmount`、`onUnmounted`
-
-常用钩子：
-
-- `onMounted`：挂载完毕后
-- `onUpdated`：更新完毕后
-- `onBeforeUnmount`：卸载之前
-
-Vue3 保留了生命周期的核心逻辑，但做了以下调整：
-
-1. **命名调整**：部分钩子名称前缀改为 `on`，如 `mounted` → `onMounted`，`destroyed` → `onUnmounted`（更直观表达 “卸载” 含义）。
-2. **合并钩子**：`beforeCreate` 和 `created` 被 `setup` 函数替代（`setup` 在组件初始化时执行，相当于这两个钩子的合并）。`setup` 是 Composition API 的核心入口函数，会在 **组件实例初始化后、**`props` **解析完成**，且 `beforeCreate` **生命周期钩子之前** 执行。
-3. **使用方式**：需从 `vue` 中显式导入，配合 Composition API 使用，例如：
-
-### 父子组件生命周期执行顺序
-
-创建时，父组件先创建实例，然后创建子组件，
-挂载时，子组件先完成 mounted，最后父组件 mounted。
-更新阶段，父组件触发更新（父 beforeUpdate 先执行），然后子组件更新完成（子updated 先完成），最后父组件 updated；
-销毁时，父 beforeDestroy 先执行，子 destroyed 先完成，父组件最后 destroyed。
-本质原因是**子组件依赖父组件的渲染结果**，必须等**子组件完成后父组件才算真正完成。**
-
-```HTML
-父 beforeCreate
-父 created
-子 beforeCreate
-子 created
-子 beforeMount
-子 mounted
-父 beforeMount
-父 mounted
-父 beforeDestroy
-子 beforeDestroy
-子 destroyed
-父 destroyed
-```
-
-### 4.2 `mounted` 发请求的原因
-
-在 `mounted` 中发请求，主要是因为此时组件已经完成挂载，DOM 已可用，适合进行依赖页面状态的初始化操作，例如：
-
-- 首屏接口请求
-- 获取尺寸信息
-- 绑定需要 DOM 的第三方库
-
-### 4.3 `unmounted` 时如何清理副作用
-
-组件卸载时常见的清理包括：
-
-- 清理定时器
-- 取消事件监听
-- 取消未完成的异步请求
-- 清除第三方库实例
-
-目的是避免内存泄漏和无效更新。
-
-### 4.4 自定义 Hook
-
-自定义 Hook 本质上是一个函数，它把 `setup` 中使用的 Composition API 封装起来，类似 Vue2 中的 `mixin`，但更清晰、更灵活。
-
-优势：
-
-- 复用逻辑
-- 提高 `setup` 的可读性
-- 让业务功能拆分更清楚
-
-例如：
-
-- `useSum` 用于管理加减逻辑
-- `useDog` 用于封装请求逻辑和数据状态
-
----
-
-## 5. 指令、渲染与模板机制
-
-### 7.1 常用 Vue 指令
-
-常用指令包括：
-
-- `v-if` / `v-else-if` / `v-else`：条件渲染
-- `v-show`：控制显示隐藏
-- `v-for`：列表渲染
-- `v-on` / `@`：事件绑定
-- `v-bind` / `:`：属性绑定
-- `v-model`：双向绑定
-
-### 7.2 `v-if` 与 `v-show` 的区别
-
-### `v-if`
-
-- 条件成立才渲染
-- 切换时会创建或销毁 DOM
-- 初次渲染开销较小
-- 适合不频繁切换的场景
-
-### `v-show`
-
-- 元素始终渲染在 DOM 中
-- 通过 `display: none` 控制显示隐藏
-- 切换成本低
-- 适合频繁切换场景
-
-补充：
-
-- v-show 是通过设置display: none 来控制元素显示隐藏，因此元素不会占据布局空间。当切换时会触发重排和重绘。
-- 而 visibility: hidden 只是让元素不可见，但仍然占据原有布局空间，只会触发重绘，不会触发重排，因此切换成本更低。
 
 ### 7.3 `v-for` 为什么要 `key`
 
