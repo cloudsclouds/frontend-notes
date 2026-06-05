@@ -2,10 +2,21 @@
 ## 1. JS 事件循环
 JS 事件循环是单线程运行时的任务调度机制，分为同步任务和异步任务。同步任务直接在主线程执行，异步任务会进入任务队列。主线程执行完同步任务后，会从任务队列取异步任务执行，异步任务又分宏任务和微任务，微任务优先级更高，会先清空微任务队列，再执行一个宏任务，最后浏览器更新渲染/重新绘制页面，如此循环。常见微任务有 Promise.then、async/await，宏任务有 setTimeout、DOM 事件、AJAX。
 
+- 执行栈（Call Stack）用于存储同步任务的执行上下文，遵循后进先出。
+- 任务队列（Task Queue）用于存储异步任务回调，又分宏任务队列和微任务队列。
+
+```js
+function a() { b(); }
+function b() { c(); }
+function c() { console.log('c'); }
+a();
+// 执行栈流程：a入栈 -> b入栈 -> c入栈 -> 执行c -> c出栈 -> b出栈 -> a出栈
+```
+
 ### 1.1 JavaScript 为什么是单线程？如何实现异步编程？
 JS 单线程是为避免多线程操作 DOM 冲突。
 
-实现异的方式：
+实现异步编程的方式：
 最早用回调函数，通过函数嵌套处理异步流程，但会形成 “回调地狱”；
 事件监听是绑定事件处理函数，事件触发时执行异步逻辑，适合用户交互场景；
 Promise 用 then/catch 链式调用解决回调嵌套，异步结果通过 resolve/reject 传递，支持并行和串行；
@@ -32,6 +43,18 @@ React Fiber 把虚拟 DOM 更新拆成小任务，通过 requestIdleCallback 在
 作用域在代码定义时就确定了，和函数调用位置无关。
 比如在函数 A 里定义函数 B，B 的作用域链会包含 A 的作用域，不管 B 在哪里被调用，它访问变量时都会先从 B 自身作用域开始，再到 A，最后到全局，不会因为调用位置变了而改变查找规则。
 
+```js
+var a = 2;
+function foo(){
+    console.log(a); // 2
+}
+function bar(){
+    var a = 3;
+    foo();
+}
+bar();
+```
+
 ### 3.2 对闭包的理解、应用场景、危害
 闭包是函数与其词法环境的组合，
 具体定义是当一个内部函数被定义在外部函数中，且内部函数引用了外部函数的变量，同时内部函数被传递到外部函数作用域之外执行时，就形成了闭包。此时内部函数依然能通过作用域链访问外部函数的变量，即使外部函数已经执行完毕。
@@ -43,6 +66,32 @@ React Fiber 把虚拟 DOM 更新拆成小任务，通过 requestIdleCallback 在
 防抖中，计时器变量被闭包保留，每次触发事件时都能清除上一次的计时器，确保只有最后一次触发delay毫秒后，才会执行目标函数； （如搜索输入、表单验证）
 
 节流中，闭包会保留 "是否在冷却中" 的状态，控制函数执行频率。首次触发会立即执行，之后在间隔时间内不再执行，直到时间到。
+
+3. 函数工厂 / 数据私有化：
+```js
+function createCounter() {
+  let count = 0;
+  return {
+    increment: () => ++count,
+    decrement: () => --count,
+    getCount: () => count
+  };
+}
+const counter = createCounter();
+console.log(counter.getCount()); // 0
+counter.increment();
+console.log(counter.getCount()); // 1
+```
+
+```js
+function createAdder(value) {
+  return function(num) {
+    return value + num;
+  };
+}
+const add5 = createAdder(5);
+console.log(add5(3)); // 8
+```
 
 但闭包如果滥用，可能会导致内存泄漏，需要注意及时清理不需要的变量引用。在 React 中，useEffect 的依赖数组如果依赖了函数，可能会因为闭包导致获取到旧的状态值，这时候可以用 useCallback 包裹函数来解决。
 
@@ -71,6 +120,29 @@ this 的指向取决于函数的调用方式：
 - new 绑定：构造函数调用，this 指向新创建的对象
 - 箭头函数：没有自己的 this，继承外层作用域的 this
 
+优先级从高到低可以记成：
+`new 绑定 > 显式绑定 > 隐式绑定 > 默认绑定`，箭头函数没有自己的 this，只看外层。
+
+```js
+function Person(name) {
+  this.name = name;
+}
+const person = new Person('Tom');
+
+function greet() {
+  console.log(this.name);
+}
+greet.call({ name: 'Tom' });
+
+const user = {
+  name: 'Tom',
+  greet() {
+    console.log(this.name);
+  }
+};
+user.greet();
+```
+
 ### 4.1 call/apply/bind区别
 1. 调用时指定
   1. call 方法：第一个参数是 this 要指向的对象；后续参数是函数的参数列表，需逐个传入；
@@ -86,6 +158,39 @@ this 的指向取决于函数的调用方式：
 - 没有arguments对象，可用 rest 参数替代；
 - 不能作为构造函数，不能用new调用；
 - 没有原型对象prototype。
+
+常见陷阱：
+```js
+const user = {
+  name: 'Tom',
+  greet() {
+    console.log(this.name);
+  }
+};
+
+setTimeout(user.greet, 100); // undefined
+setTimeout(() => user.greet(), 100); // Tom
+setTimeout(user.greet.bind(user), 100); // Tom
+```
+
+```js
+const obj = {
+  name: 'Tom',
+  outer() {
+    console.log(this.name); // Tom
+
+    function inner() {
+      console.log(this.name); // undefined
+    }
+    inner();
+
+    const arrow = () => {
+      console.log(this.name); // Tom
+    };
+    arrow();
+  }
+};
+```
 
 ## 5. Promise 
 Promise 对象是异步编程的一种解决方案，表示一个异步操作的最终完成或失败。Promise 构造函数接收一个回调函数，该函数包含 resolve和 reject 两个参数，分别用于控制异步操作的成功与失败状态。
