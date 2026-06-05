@@ -18,7 +18,7 @@ var merge = function(nums1, m, nums2, n) {
 };
 ```
 
-## 2. 合并两个有序链表
+## 2. 合并两个有序链表 (T16)
 ```js
 var mergeTwoLists = function(list1, list2) {
     const dummy = new ListNode(-1);
@@ -44,7 +44,7 @@ var mergeTwoLists = function(list1, list2) {
 };
 ```
 
-## 3. 螺旋矩阵
+## 3. 螺旋矩阵 (T21)
 输入：matrix = [[1,2,3],[4,5,6],[7,8,9]]
 输出：[1,2,3,6,9,8,7,4,5]
 ```js
@@ -78,12 +78,10 @@ var spiralOrder = function(matrix) {
     }
     return res;
 };
-
 ```
 
 # 查找
-## 4. 二分查找
-
+## 4. 二分查找 (T25)
 ```js
 var search = function(nums, target) {
     let left = 0, right = nums.length - 1;
@@ -102,9 +100,7 @@ var search = function(nums, target) {
 ```
 
 # 排序
-
-## 5. 快速排序
-
+## 5. 快速排序 (T18)
 ```js
 var sortArray = function(nums) {
     const QuickSort = (nums, left, right) => {
@@ -133,7 +129,7 @@ var sortArray = function(nums) {
 };
 ```
 
-## 6. 查找第 k 大
+## 6. 查找第 k 大 (T17)
 ```js
 var findKthLargest = function(nums, k) {
     const quickSelect = (nums, left, right) => {
@@ -201,8 +197,7 @@ function BubbleSort(nums) {
 ```
 
 # 哈希 和 Set 
-## 7. 两数之和
-
+## 7. 两数之和 (T6)
 ```js
 var twoSum = function(nums, target) {
     const myMap = new Map();
@@ -286,8 +281,7 @@ var moveZeroes = function(nums) {
 };
 ```
 
-## 11. 三数之和
-
+## 11. 三数之和 (T12)
 先对数组排序，然后固定第一个数 first。
 接着使用双指针 second 和 third，在剩余区间寻找另外两个数，使三数之和为 0。
 如果和大于 0，就移动右指针；如果小于 0，就移动左指针。
@@ -352,8 +346,7 @@ var trap = function(height) {
 
 # 贪心
 
-## 13. 买卖股票的最佳时机
-
+## 13. 买卖股票的最佳时机 (T11)
 ```js
 var maxProfit = function(prices) {
     let minPrice = prices[0];
@@ -383,9 +376,7 @@ var canJump = function(nums) {
 ```
 
 # DP
-
-## 15. 爬楼梯
-
+## 15. 爬楼梯 (T20)
 ```js
 var climbStairs = function(n) {
     const dp = new Array(n+1).fill(0);
@@ -416,8 +407,7 @@ var rob = function(nums) {
 };
 ```
 
-## 17. 最大子数组和
-
+## 17. 最大子数组和 (T10)
 ```js
 var maxSubArray = function(nums) {
     const n = nums.length;
@@ -432,8 +422,7 @@ var maxSubArray = function(nums) {
 };
 ```
 
-## 18. 最长递增子序列
-
+## 18. 最长递增子序列 (T23)
 ```js
 var lengthOfLIS = function(nums) {
     const n = nums.length;
@@ -583,11 +572,10 @@ var minPathSum = function(grid) {
 };
 ```
 
-## 22. 最长回文子串
-
-dp[i][j] = s[i..j] 是否是回文
-
+## 22. 最长回文子串 (T19)
 ```js
+// dp[i][j] = s[i..j] 是否是回文
+
 s[i] === s[j] && (j-i <= 2 || dp[i+1][j-1])
     dp[i][i] = true
 ```
@@ -677,7 +665,7 @@ var compareVersion = function(version1, version2) {
 };
 ```
 
-## 25. 字符串相加
+## 25. 字符串相加 (T5)
 ```js
 var addStrings = function(num1, num2) {
     const res = [];
@@ -791,7 +779,7 @@ var lengthOfLongestSubstring = function(s) {
 }
 ```
 
-## 29. 合并区间
+## 29. 合并区间 (T24)
 给出一个区间的集合 intervals，其中每个区间 intervals[i] = [starti, endi]。
 请你合并所有重叠的区间，并返回一个不重叠的区间数组。
 输入：intervals = [[1,3],[2,6],[8,10],[15,18]]
@@ -844,7 +832,7 @@ var minSubArrayLen = function(target, nums) {
 ```
 
 # 栈
-## 31. 有效的括号
+## 31. 有效的括号 (T4)
 ```js
 var isValid = function(s) {
     const myMap = {
@@ -866,7 +854,7 @@ var isValid = function(s) {
 }
 ```
 
-## 32. LRU
+## 32. LRU (T13)
 ```js
 var LRUCache = function(capacity) {
     this.capacity = capacity
@@ -885,7 +873,7 @@ LRUCache.prototype.put = function(key, value) {
     if (this.map.has(key)) {
         this.map.delete(key);
     } else if (this.map.size >= this.capacity) {
-        this.map.delete(this.map.keys().next().value);
+        this.map.delete(this.map.keys().next().value);  // map.keys() 返回一个迭代器（Iterator）,迭代器通过 next() 获取下一个元素。
     }
     this.map.set(key, value);
 };
@@ -974,7 +962,7 @@ var decodeString = function(s) {
 
 
 # 链表
-## 33. 反转链表
+## 33. 反转链表 (T8)
 ```js
 var reverseList = function(head) {
     let pre = null, p = head;
@@ -988,7 +976,7 @@ var reverseList = function(head) {
 }
 ```
 
-## 34. 环形链表
+## 34. 环形链表 (T14)
 ```js
 var hasCycle = function(head) {
     let fast = head, slow = head;
@@ -1173,13 +1161,11 @@ var inorderTraversal = function(root) {
 ```
 
 ## 路径类 DFS
-
 这类题的核心就两件事
-
 - `path / sum / state` 作为递归参数向下传
 - 到叶子节点时做一次结算
 
-### 42. 路径总和
+### 42. 路径总和 (T15)
 ```js
 var hasPathSum = function(root, targetSum) {
     if (!root) return false;
@@ -1213,7 +1199,7 @@ var binaryTreePaths = function(root) {
 };
 ```
 
-### 44. 求根到叶子节点数字之和
+### 44. 求根到叶子节点数字之和 (T26)
 ```js
 var sumNumbers = function(root) {
     let total = 0;
@@ -1334,10 +1320,7 @@ var buildTree = function(preorder, inorder) {
 ```
 
 ## 层序遍历
-
-这组题本质上都能抽成同一个 BFS 框架，只是“每层怎么取结果”不一样。
-
-### 51. 基础层序遍历
+### 51. 二叉树的层序遍历 (T9)
 ```js
 var levelOrder = function(root) {
     if (!root) return [];
@@ -1348,17 +1331,14 @@ var levelOrder = function(root) {
     while (queue.length) {
         const size = queue.length;
         const level = [];
-
         for (let i = 0; i < size; i++) {
             const node = queue.shift();
             level.push(node.val);
             if (node.left) queue.push(node.left);
             if (node.right) queue.push(node.right);
         }
-
         res.push(level);
     }
-
     return res;
 };
 ```
@@ -1415,7 +1395,7 @@ var rightSideView = function(root) {
 ```
 
 # 回溯
-## 54. 全排列
+## 54. 全排列 (T7)
 ```js
 var permute = function(nums) {
     const n = nums.length;
@@ -1505,7 +1485,7 @@ var combinationSum2 = function(candidates, target) {
 };
 ```
 
-## 57. 岛屿数量
+## 57. 岛屿数量 (T22)
 给你一个由 '1'（陆地）和 '0'（水）组成的二维网格 grid，请你计算网格中岛屿的数量。
 岛屿由水平方向或竖直方向相邻的陆地连接形成。
 你可以假设网格的四周被水包围。
@@ -1517,7 +1497,6 @@ grid = [
   ["1","1","0","0","0"],
   ["0","0","0","0","0"]
 ]
-
 输出：1
 ```
 
