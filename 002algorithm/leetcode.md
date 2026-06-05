@@ -80,8 +80,56 @@ var spiralOrder = function(matrix) {
 };
 ```
 
+## 4. 数组洗牌 (T58)
+1. 从数组末尾开始遍历
+2. 随机选择 `[0, i]` 的索引
+3. 交换当前元素与随机元素
+4. 继续向前直到遍历完成
+```js
+const nums = [1, 6, 3, 7, 0, 4, 5];
+const n = nums.length;
+for (let i = n - 1; i >= 0; i--) {
+    const randomIndex = Math.floor(Math.random() * (i + 1));
+    [nums[i], nums[randomIndex]] = [nums[randomIndex], nums[i]];
+}
+console.log(nums);
+```
+
+## 数组的三等分
+给你一个整数数组 `arr`，如果可以把它分成 3 个和相等的非空部分，返回 `true`，否则返回 `false`。
+
+思路：
+1. 先求数组总和，若不能被 3 整除，直接返回 `false`
+2. 目标和是 `sum / 3`
+3. 从左到右累加，找到两段和等于目标值的区间
+4. 只要前两段找到了，剩下的部分自然是第三段，并且题目保证第三段非空
+
+```js
+var canThreePartsEqualSum = function(arr) {
+    const sum = arr.reduce((total, num) => total + num, 0);
+    if (sum % 3 !== 0) return false;
+
+    const target = sum / 3;
+    let curSum = 0;
+    let count = 0;
+
+    for (let i = 0; i < arr.length; i++) {
+        curSum += arr[i];
+        if (curSum === target) {
+            count++;
+            curSum = 0;
+            if (count === 2 && i < arr.length - 1) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+};
+```
+
 # 查找
-## 4. 二分查找 (T25)
+## 5. 二分查找 (T25)
 ```js
 var search = function(nums, target) {
     let left = 0, right = nums.length - 1;
@@ -100,7 +148,7 @@ var search = function(nums, target) {
 ```
 
 # 排序
-## 5. 快速排序 (T18)
+## 6. 快速排序 (T18)
 ```js
 var sortArray = function(nums) {
     const QuickSort = (nums, left, right) => {
@@ -129,7 +177,7 @@ var sortArray = function(nums) {
 };
 ```
 
-## 6. 查找第 k 大 (T17)
+## 7. 查找第 k 大 (T17)
 ```js
 var findKthLargest = function(nums, k) {
     const quickSelect = (nums, left, right) => {
@@ -197,7 +245,7 @@ function BubbleSort(nums) {
 ```
 
 # 哈希 和 Set 
-## 7. 两数之和 (T6)
+## 8. 两数之和 (T6)
 ```js
 var twoSum = function(nums, target) {
     const myMap = new Map();
@@ -213,7 +261,7 @@ var twoSum = function(nums, target) {
 };
 ```
 
-## 8. 字母异位词分组
+## 9. 字母异位词分组
 strs = ["eat", "tea", "tan", "ate", "nat", "bat"]
 遍历字符串数组，把每个字符串排序后的结果作为 key。
 因为字母异位词排序后是一样的，所以可以分到同一组。
@@ -233,7 +281,7 @@ var groupAnagrams = function(strs) {
 ```
 
 
-## 9. 最长连续序列
+## 10. 最长连续序列
 给定一个未排序的整数数组 nums ，找出数字连续的最长序列（不要求序列元素在原数组中连续）的长度。
 示例 1：
 输入：nums = [100,4,200,1,3,2]
@@ -262,8 +310,7 @@ var longestConsecutive = function(nums) {
 
 
 # 双指针
-## 10. 移动零
-
+## 11. 移动零 (T42)
 right 指针负责遍历数组，left 指针指向下一个非零元素应该放的位置。
 当 right 遇到非零元素时，就和 left 位置交换，并让 left 前进一位。
 这样可以保证所有非零元素按顺序移动到数组前面，而 0 会自然被挤到后面。
@@ -281,7 +328,7 @@ var moveZeroes = function(nums) {
 };
 ```
 
-## 11. 三数之和 (T12)
+## 12. 三数之和 (T12)
 先对数组排序，然后固定第一个数 first。
 接着使用双指针 second 和 third，在剩余区间寻找另外两个数，使三数之和为 0。
 如果和大于 0，就移动右指针；如果小于 0，就移动左指针。
@@ -315,7 +362,7 @@ var threeSum = function(nums) {
 };
 ```
 
-## 12. 接雨水
+## 13. 接雨水 (T35)
 给定一个非负整数数组 height，表示每个位置的柱子高度，宽度都为 1。下雨后，求这些柱子之间一共能接多少单位的雨水。
 输入：height = [0,1,0,2,1,0,1,3,2,1,2,1]
 输出：6
@@ -346,7 +393,7 @@ var trap = function(height) {
 
 # 贪心
 
-## 13. 买卖股票的最佳时机 (T11)
+## 14. 买卖股票的最佳时机 (T11)
 ```js
 var maxProfit = function(prices) {
     let minPrice = prices[0];
@@ -359,7 +406,22 @@ var maxProfit = function(prices) {
 };
 ```
 
-## 14. 跳跃游戏
+## 15. 买卖股票的最佳时机 II
+可以多次交易，只要今天价格比昨天高，就把这段利润加上。
+
+```js
+var maxProfit = function(prices) {
+    let profit = 0;
+    for (let i = 1; i < prices.length; i++) {
+        if (prices[i] > prices[i - 1]) {
+            profit += prices[i] - prices[i - 1];
+        }
+    }
+    return profit;
+};
+```
+
+## 16. 跳跃游戏
 
 如果：`maxReach < i`，说明：当前位置 i 根本到不了
 否则更新最远距离：`Math.max(maxReach, nums[i] + i)`
@@ -376,7 +438,7 @@ var canJump = function(nums) {
 ```
 
 # DP
-## 15. 爬楼梯 (T20)
+## 17. 爬楼梯 (T20)、斐波那契数列 (T34)
 ```js
 var climbStairs = function(n) {
     const dp = new Array(n+1).fill(0);
@@ -389,7 +451,7 @@ var climbStairs = function(n) {
 };
 ```
 
-## 16. 打家劫舍
+## 18. 打家劫舍 (T53)
 
 一个专业的小偷，计划偷窃沿街的房屋。每间房内都藏有一定的现金，影响小偷偷窃的唯一制约因素就是相邻的房屋装有相互连通的防盗系统，如果两间相邻的房屋在同一晚上被小偷闯入，系统会自动报警。
 给定一个代表每个房屋存放金额的非负整数数组 nums ，请计算 不触动警报装置的情况下 ，一夜之内能够偷窃到的最高金额。
@@ -407,7 +469,7 @@ var rob = function(nums) {
 };
 ```
 
-## 17. 最大子数组和 (T10)
+## 19. 最大子数组和 (T10)
 ```js
 var maxSubArray = function(nums) {
     const n = nums.length;
@@ -422,7 +484,7 @@ var maxSubArray = function(nums) {
 };
 ```
 
-## 18. 最长递增子序列 (T23)
+## 20. 最长递增子序列 (T23)
 ```js
 var lengthOfLIS = function(nums) {
     const n = nums.length;
@@ -509,9 +571,8 @@ var maxProduct = function(nums) {
 ```
 
 
-## 19. 零钱兑换
-给定不同面额的硬币 coins 和一个总金额 amount。编写一个函数来计算可以凑成总金额所需的最少的硬币个数。如果没有任何一种硬币组合能组成总金额，返回 -1。
-你可以认为每种硬币的数量是无限的。
+## 21. 零钱兑换 (T28)
+给定不同面额的硬币 coins 和一个总金额 amount。编写一个函数来计算可以凑成总金额所需的最少的硬币个数。如果没有任何一种硬币组合能组成总金额，返回 -1。你可以认为每种硬币的数量是无限的。
 `dp[i]` = 凑出金额 i 的最少硬币数
 
 ```js
@@ -529,8 +590,7 @@ var coinChange = function(coins, amount) {
 };
 ```
 
-## 20. 不同路径
-
+## 22. 不同路径 (T40)
 `dp[i][j] = dp[i-1][j] + dp[i][j-1] = 到达(i,j)的路径数`
 第一行 = 1，第一列 = 1
 
@@ -546,7 +606,7 @@ var uniquePaths = function(m, n) {
 };
 ```
 
-## 21. 最小路径和
+## 23. 最小路径和
 
 尤其注意初始化路径：dp[0][0] = grid[0][0]，第一行：累加，第一列：累加
 dp[i][j] = 到(i,j)的最小路径和 = min(上, 左) + 当前值
@@ -572,7 +632,7 @@ var minPathSum = function(grid) {
 };
 ```
 
-## 22. 最长回文子串 (T19)
+## 24. 最长回文子串 (T19)
 ```js
 // dp[i][j] = s[i..j] 是否是回文
 
@@ -605,13 +665,12 @@ var longestPalindrome = function(s) {
 };
 ```
 
-## 23. 最长公共子序列
-
+## 25. 最长公共子序列 (T36)、最长重复子数组 (T55)
+```
 dp[i][j] = 前i个 & 前j个 的最长公共子序列长度
 相等：dp[i][j] = dp[i-1][j-1] + 1
 不等：dp[i][j] = max(dp[i-1][j], dp[i][j-1])
-dp[0][j] = 0
-dp[i][0] = 0
+```
 
 ```js
 var longestCommonSubsequence = function(text1, text2) {
@@ -647,7 +706,7 @@ var convertToBaseN = function(num, base) {
 };
 ```
 
-## 24. 版本比较 (T2)
+## 26. 版本比较 (T2)
 给你两个 版本号字符串 version1 和 version2 ，请你比较它们。版本号由被点 '.' 分开的修订号组成。修订号的值 是它 转换为整数 并忽略前导零。
 比较版本号时，请按 从左到右的顺序 依次比较它们的修订号。如果其中一个版本字符串的修订号较少，则将缺失的修订号视为 0。
 ```js
@@ -665,7 +724,7 @@ var compareVersion = function(version1, version2) {
 };
 ```
 
-## 25. 字符串相加 (T5)
+## 27. 字符串相加 (T5)
 ```js
 var addStrings = function(num1, num2) {
     const res = [];
@@ -684,7 +743,7 @@ var addStrings = function(num1, num2) {
 };
 ```
 
-## 26. 有效的回文串
+## 28. 有效的回文串 (T48)
 ```js
 var isPalindrome = function(s) {
   s = s.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -696,7 +755,7 @@ var isPalindrome = function(s) {
 };
 ```
 
-## 27. 最长公共前缀
+## 29. 最长公共前缀 (T37)
 ```js
 var longestCommonPrefix = function(strs) {
     let prefix = strs[0];
@@ -710,7 +769,25 @@ var longestCommonPrefix = function(strs) {
 };
 ```
 
-## 字符串相乘
+## 30. 千位分隔数 (T39)
+```js
+var thousandSeparator = function(n) {
+    const str = n + '';
+    let count = 0;
+    let res = [];
+    for (let i = str.length-1; i >= 0; i--) {
+        res.push(str[i]);
+        count++;
+        if (count === 3 && i !== 0) {
+            res.push('.');
+            count = 0;
+        }
+    }
+    return res.reverse().join('');
+};
+```
+
+## 31. 字符串相乘 (T52)
 ```js
 var multiply = function(num1, num2) {
     // 1️⃣ 特殊情况
@@ -756,7 +833,7 @@ var multiply = function(num1, num2) {
 
 
 # 滑动窗口
-## 28. 无重复字符的最长子串 (T1)
+## 32. 无重复字符的最长子串 (T1)
 ```js
 var lengthOfLongestSubstring = function(s) {
     const n = s.length;
@@ -779,7 +856,7 @@ var lengthOfLongestSubstring = function(s) {
 }
 ```
 
-## 29. 合并区间 (T24)
+## 33. 合并区间 (T24)
 给出一个区间的集合 intervals，其中每个区间 intervals[i] = [starti, endi]。
 请你合并所有重叠的区间，并返回一个不重叠的区间数组。
 输入：intervals = [[1,3],[2,6],[8,10],[15,18]]
@@ -807,7 +884,7 @@ var merge = function(intervals) {
 }
 ```
 
-## 330. 长度最小的子数组
+## 34. 长度最小的子数组 (T47)
 给定一个含有 n 个正整数的数组和一个正整数 target 。
 找出该数组中满足其总和大于等于 target 的长度最小的 子数组 [nums(l), nums(l+1), ..., nums(r-1), nums(r)] ，并返回其长度。如果不存在符合条件的子数组，返回 0 。
 ```js
@@ -818,7 +895,6 @@ var minSubArrayLen = function(target, nums) {
 
     for (let right = 0; right < nums.length; right++) {
         sum += nums[right];
-
         // 当窗口满足条件时，尽量收缩
         while (sum >= target) {
             minLen = Math.min(minLen, right - left + 1);
@@ -826,13 +902,12 @@ var minSubArrayLen = function(target, nums) {
             left++;
         }
     }
-
     return minLen === Infinity ? 0 : minLen;
 };
 ```
 
 # 栈
-## 31. 有效的括号 (T4)
+## 35. 有效的括号 (T4)
 ```js
 var isValid = function(s) {
     const myMap = {
@@ -854,7 +929,7 @@ var isValid = function(s) {
 }
 ```
 
-## 32. LRU (T13)
+## 36. LRU (T13)
 ```js
 var LRUCache = function(capacity) {
     this.capacity = capacity
@@ -879,7 +954,7 @@ LRUCache.prototype.put = function(key, value) {
 };
 ```
 
-## 最小栈
+## 37. 最小栈 (T51)
 设计一个支持 push ，pop ，top 操作，并能在常数时间内检索到最小元素的栈。
 实现 MinStack 类:
 - MinStack() 初始化堆栈对象。
@@ -917,7 +992,7 @@ MinStack.prototype.getMin = function() {
 };
 ```
 
-## 字符串解码
+## 38. 字符串解码 (T49)
 给定一个经过编码的字符串 s，返回它解码后的字符串。
 编码规则为：
 - k[encoded_string]
@@ -960,9 +1035,8 @@ var decodeString = function(s) {
 };
 ```
 
-
 # 链表
-## 33. 反转链表 (T8)
+## 39. 反转链表 (T8)
 ```js
 var reverseList = function(head) {
     let pre = null, p = head;
@@ -976,7 +1050,7 @@ var reverseList = function(head) {
 }
 ```
 
-## 34. 环形链表 (T14)
+## 40. 环形链表 (T14)
 ```js
 var hasCycle = function(head) {
     let fast = head, slow = head;
@@ -989,7 +1063,7 @@ var hasCycle = function(head) {
 }
 ```
 
-## 35. 删除链表倒数第N个节点
+## 41. 删除链表倒数第N个节点 (T32)、(T57)
 > dummy 节点用于统一链表操作，特别是在删除头节点时，可以避免单独处理边界情况，使代码更加简洁和安全。
 ```js
 var removeNthFromEnd = function(head, n) {
@@ -1007,7 +1081,7 @@ var removeNthFromEnd = function(head, n) {
 };
 ```
 
-## 36. k 个一组反转链表
+## 42. k 个一组反转链表 (T41)
 ```js
 var reverseKGroup = function(head, k) {
     let node = head;
@@ -1037,7 +1111,7 @@ var reverseKGroup = function(head, k) {
 }
 ```
 
-## 37. 相交链表
+## 43. 相交链表 (T54)
 ```js
 var getIntersectionNode = function(headA, headB) {
     if (headA == null || headB = null)  return null;
@@ -1050,35 +1124,29 @@ var getIntersectionNode = function(headA, headB) {
 }
 ```
 
-## 38. 两数相加
+## 44. 两数相加 (T46)
 ```js
 var addTwoNumbers = function(l1, l2) {
     let dummy = new ListNode(0);
     let cur = dummy;
-
     let carry = 0;
 
     while (l1 || l2 || carry) {
         const val1 = l1 ? l1.val : 0;
         const val2 = l2 ? l2.val : 0;
-
         const sum = val1 + val2 + carry;
-
         carry = Math.floor(sum / 10);
         const newVal = sum % 10;
-
         cur.next = new ListNode(newVal);
         cur = cur.next;
-
         if (l1) l1 = l1.next;
         if (l2) l2 = l2.next;
     }
-
     return dummy.next;
 };
 ```
 
-## 39. 重排链表
+## 45. 重排链表
 给定一个单链表 L0 → L1 → ... → Ln-1 → Ln，
 请将其重新排列为：
 L0 → Ln → L1 → Ln-1 → L2 → Ln-2 → ...
@@ -1127,25 +1195,7 @@ var reorderList = function(head) {
 
 
 # 二叉树
-
-## DFS 遍历
-
-### 40. 中序 / 前序 / 后序通用模板
-```js
-const dfs = (root) => {
-    if (!root) return;
-
-    // 前序：处理当前节点
-    // dfs(root.left);
-
-    // 中序：处理当前节点
-    // dfs(root.right);
-
-    // 后序：处理当前节点
-};
-```
-
-### 41. 二叉树的中序遍历
+### 46. 二叉树的中序遍历 (T33)、前序遍历 (T59)
 ```js
 var inorderTraversal = function(root) {
     const res = [];
@@ -1161,11 +1211,10 @@ var inorderTraversal = function(root) {
 ```
 
 ## 路径类 DFS
-这类题的核心就两件事
 - `path / sum / state` 作为递归参数向下传
 - 到叶子节点时做一次结算
 
-### 42. 路径总和 (T15)
+### 47. 路径总和 (T15)
 ```js
 var hasPathSum = function(root, targetSum) {
     if (!root) return false;
@@ -1177,7 +1226,7 @@ var hasPathSum = function(root, targetSum) {
 };
 ```
 
-### 43. 二叉树的所有路径
+### 48. 二叉树的所有路径
 ```js
 var binaryTreePaths = function(root) {
     const res = [];
@@ -1199,7 +1248,7 @@ var binaryTreePaths = function(root) {
 };
 ```
 
-### 44. 求根到叶子节点数字之和 (T26)
+### 49. 求根到叶子节点数字之和 (T26)
 ```js
 var sumNumbers = function(root) {
     let total = 0;
@@ -1223,13 +1272,10 @@ var sumNumbers = function(root) {
 ```
 
 ## 后序聚合
-
-这类题的统一思路是：
-
 - 先拿到左右子树的信息
 - 再在当前节点做汇总
 
-### 45. 二叉树的最大深度
+### 50. 二叉树的最大深度 (T29)
 ```js
 var maxDepth = function(root) {
     if (!root) return 0;
@@ -1239,7 +1285,7 @@ var maxDepth = function(root) {
 };
 ```
 
-### 46. 二叉树的最大直径
+### 51. 二叉树的最大直径
 ```js
 var diameterOfBinaryTree = function(root) {
     let res = 0;
@@ -1257,7 +1303,7 @@ var diameterOfBinaryTree = function(root) {
 };
 ```
 
-### 47. 二叉树的最近公共祖先
+### 52. 二叉树的最近公共祖先 (T43)
 ```js
 var lowestCommonAncestor = function(root, p, q) {
     if (!root || root === p || root === q) return root;
@@ -1271,8 +1317,7 @@ var lowestCommonAncestor = function(root, p, q) {
 ```
 
 ## 树结构变换
-
-### 48. 反转二叉树
+### 53. 反转二叉树 (T38)
 ```js
 var flipTree = function(root) {
     if (!root) return null;
@@ -1283,7 +1328,7 @@ var flipTree = function(root) {
 };
 ```
 
-### 49. 对称二叉树
+### 54. 对称二叉树 (T50)
 ```js
 var checkSymmetricTree = function(root) {
     if (!root) return true;
@@ -1299,7 +1344,7 @@ var checkSymmetricTree = function(root) {
 };
 ```
 
-### 50. 从前序与中序遍历序列构造二叉树
+### 55. 从前序与中序遍历序列构造二叉树 (T56)
 ```js
 var buildTree = function(preorder, inorder) {
     if (!preorder.length || !inorder.length) return null;
@@ -1320,7 +1365,7 @@ var buildTree = function(preorder, inorder) {
 ```
 
 ## 层序遍历
-### 51. 二叉树的层序遍历 (T9)
+### 56. 二叉树的层序遍历 (T9)
 ```js
 var levelOrder = function(root) {
     if (!root) return [];
@@ -1343,7 +1388,7 @@ var levelOrder = function(root) {
 };
 ```
 
-### 52. 锯齿形层次遍历
+### 57. 锯齿形层次遍历 (T44)
 ```js
 var zigzagLevelOrder = function(root) {
     if (!root) return [];
@@ -1372,7 +1417,7 @@ var zigzagLevelOrder = function(root) {
 };
 ```
 
-### 53. 二叉树的右视图
+### 58. 二叉树的右视图 (T45)
 ```js
 var rightSideView = function(root) {
     if (!root) return [];
@@ -1395,7 +1440,7 @@ var rightSideView = function(root) {
 ```
 
 # 回溯
-## 54. 全排列 (T7)
+## 59. 全排列 (T7)
 ```js
 var permute = function(nums) {
     const n = nums.length;
@@ -1423,7 +1468,7 @@ var permute = function(nums) {
 };
 ```
 
-## 55. 子集
+## 60. 子集
 给你一个整数数组 nums ，数组中的元素 互不相同 。返回该数组所有可能的子集（幂集）。
 解集 不能 包含重复的子集。你可以按 任意顺序 返回解集。
 
@@ -1444,7 +1489,7 @@ var subsets = function(nums) {
 };
 ```
 
-## 56. 组合总和
+## 61. 组合总和
 给定一个候选人编号的集合 candidates 和一个目标数 target ，找出 candidates 中所有可以使数字和为 target 的组合。
 candidates 中的每个数字在每个组合中只能使用 一次 。
 注意：解集不能包含重复的组合。 
@@ -1485,7 +1530,7 @@ var combinationSum2 = function(candidates, target) {
 };
 ```
 
-## 57. 岛屿数量 (T22)
+## 62. 岛屿数量 (T22)
 给你一个由 '1'（陆地）和 '0'（水）组成的二维网格 grid，请你计算网格中岛屿的数量。
 岛屿由水平方向或竖直方向相邻的陆地连接形成。
 你可以假设网格的四周被水包围。
@@ -1531,7 +1576,7 @@ var numIslands = function(grid) {
 }
 ```
 
-## 58. 岛屿的最大面积
+## 63. 岛屿的最大面积 (T31)
 ```js
 var maxAreaOfIsland = function(grid) {
     const m = grid.length;
@@ -1557,7 +1602,7 @@ var maxAreaOfIsland = function(grid) {
 }
 ```
 
-## 59. 括号生成
+## 64. 括号生成 (T30)
 每一步可以选择放左括号或右括号，但需要满足两个约束：
 - 左括号数量不能超过 n
 - 右括号数量不能超过左括号
@@ -1585,12 +1630,12 @@ var generateParenthesis = function(n) {
 }
 ```
 
-## 60. 复原 IP 地址
+## 65. 复原 IP 地址 (T27)
 给定一个只包含数字的字符串 s，通过在字符串中插入 . 将其分割成 4 个整数段，判断能否组成一个合法的 IP 地址。
 合法 IP 段要求
 - 每段长度 1~3
 - 不能有前导零，除非这一段就是 0
-- 每段数字范围 0 ~ 255
+- 每段数字范围 0~255
 
 输入：s = "25525511135"
 输出：["255.255.11.135","255.255.111.35"]
