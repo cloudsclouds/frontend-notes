@@ -1,111 +1,155 @@
 # TypeScript
 
-## extends 在 TypeScript 中的作用及使用场景
-### 类继承
-extends 用于类的继承，表示一个类继承了另一个类的属性和方法。通过继承，子类可以重用父类的功能，并且可以扩展或重写父类的方法。
-class Animal {
-  eat() {
-    console.log("Eating...");
-  }
+这份文档按“高频问题 + 面试逐字稿 + 关键代码笔记”整理。
+目标是两件事：
+
+1. 面试时能直接说出口
+2. 复习时保留关键类型写法和代码示例
+
+---
+
+## 1. TypeScript 是什么？为什么前端项目要用它？
+
+### 面试逐字稿
+
+TypeScript 是 JavaScript 的超集，本质上是在 JavaScript 基础上增加了静态类型系统。
+
+它的核心价值主要有几个：
+- 在编译阶段发现类型错误，减少运行时问题
+- 提供更好的代码提示、自动补全和重构能力
+- 更适合大型项目和多人协作
+- 能把接口、数据结构、函数输入输出描述得更清楚
+
+如果一句话总结，我会说：TypeScript 不是为了让代码“更复杂”，而是为了让复杂项目更可控。
+
+---
+
+## 2. TypeScript 在前端项目中的优缺点是什么？
+
+### 面试逐字稿
+
+优点方面，最重要的是类型安全和可维护性。它能在开发阶段提前暴露很多问题，比如接口字段写错、函数参数传错、状态类型不一致。再加上 IDE 提示更强，所以在 React、Vue 这类大型项目里收益很明显。
+
+缺点主要有几个：
+- 有学习成本，尤其是泛型、条件类型、类型体操这些内容
+- 需要编译和配置，工程复杂度会略高
+- 写类型会增加一定代码量
+- 遇到没有类型声明的第三方库时，可能需要自己补类型
+
+所以我的理解是，小项目不是必须上 TypeScript，但只要项目规模上来、团队协作变复杂，TypeScript 基本都会带来正收益。
+
+---
+
+## 3. 类型推断和类型注解的区别是什么？
+
+### 面试逐字稿
+
+类型推断是 TypeScript 根据上下文自动推出来变量类型，比如你写 `let num = 10`，它会自动推断成 `number`。
+
+类型注解是你显式告诉 TypeScript 这个值应该是什么类型，比如 `let num: number = 10`。
+
+一般来说：
+- 简单场景优先用类型推断，让代码更简洁
+- 对外暴露的函数参数、返回值、接口结构，最好写清楚类型注解，让可读性和稳定性更强
+
+### 关键代码笔记
+
+```ts
+// 类型推断
+let num = 10;      // number
+let str = "hello"; // string
+
+// 类型注解
+let count: number = 10;
+let name: string = "Tom";
+```
+
+---
+
+## 4. `any` 和 `unknown` 有什么区别？
+
+### 面试逐字稿
+
+`any` 表示“我不做类型检查了”，它会直接绕过 TypeScript 的类型系统，所以虽然灵活，但很容易把错误放到运行时。
+
+`unknown` 也表示“不确定类型”，但它更安全，因为你不能直接拿它当成别的类型用，必须先做类型收窄。
+
+一句话总结：
+- `any` 是放弃检查
+- `unknown` 是先保守接收，再逐步判断
+
+### 关键代码笔记
+
+```ts
+let value: any = 10;
+value = "hello";
+let num: number = value; // 不安全，但不报错
+```
+
+```ts
+let value2: unknown = 10;
+value2 = "hello";
+
+if (typeof value2 === "string") {
+  console.log(value2.length);
+}
+```
+
+---
+
+## 5. `void` 和 `never` 有什么区别？
+
+### 面试逐字稿
+
+`void` 表示函数没有返回值，或者说返回值我们不关心。
+
+`never` 表示函数根本不会正常返回，比如它总是抛错，或者一直死循环。
+
+所以：
+- `void` 是“返回空”
+- `never` 是“不会返回”
+
+### 关键代码笔记
+
+```ts
+function logMessage(message: string): void {
+  console.log(message);
+}
+```
+
+```ts
+function throwError(message: string): never {
+  throw new Error(message);
 }
 
-class Dog extends Animal {
-  bark() {
-    console.log("Barking...");
-  }
+function infiniteLoop(): never {
+  while (true) {}
 }
+```
 
-const dog = new Dog();
-dog.eat();  // Eating...
-dog.bark(); // Barking...
-### 接口继承
-接口可以通过 extends 继承另一个接口，合并其属性。这使得接口可以更好地复用，并且可以灵活地扩展。
-interface Animal {
-  name: string;
-  eat(): void;
-}
+---
 
-interface Dog extends Animal {
-  breed: string;
-}
+## 6. 联合类型和交叉类型有什么区别？
 
-const dog: Dog = {
-  name: "Max",
-  breed: "Labrador",
-  eat() {
-    console.log("Eating...");
-  }
-};
-### 泛型约束
-在泛型中，extends 用来限制泛型类型必须是某个类型或接口的子类型。这可以保证传入的类型具备一定的结构，从而提高代码的安全性。
-function getLength<T extends { length: number }>(arg: T): number {
-  return arg.length;
-}
+### 面试逐字稿
 
-getLength("hello"); // 5
-getLength([1, 2, 3]); // 3
-这里，T extends { length: number } 表示传入的类型 T 必须拥有 length 属性。
-### 条件类型
-extends 也用于 TypeScript 中的条件类型，通过 extends 来判断类型并进行相应的处理。这使得类型判断更加灵活，能够根据类型的不同作出不同的行为。
-type IsString = T extends string ? "Yes" : "No";
+联合类型用 `|`，表示“这个值可以是多种类型之一”。
 
-type Result1 = IsString; // "Yes"
-type Result2 = IsString; // "No"
-在这里，T extends string 用于判断类型是否为 string，如果是，结果为 "Yes"，否则为 "No"。
-## 如何在 TypeScript 中避免 IDE 报错
-在 TypeScript 中，IDE 可能会因为类型不匹配或类型推导失败而报错。以下是避免 IDE 报错的一些常用技巧：
-### 开启严格模式
-确保在 tsconfig.json 中开启严格模式，可以大大减少类型错误的机会。
-{
-  "compilerOptions": {
-    "strict": true
-  }
-}
-开启严格模式后，TypeScript 会强制进行更多类型检查，确保代码更安全。
-### 类型注解
-通过显式地指定类型，避免 IDE 无法推导类型的问题。
-let num: number = 10;
-let str: string = "hello";
-### 使用类型断言
-当你确定某个值的类型时，可以使用类型断言来告诉 TypeScript 这就是你想要的类型。
-let value: any = "hello";
-let strLength: number = (value as string).length; // 类型断言
-### 自定义类型保护
-通过自定义类型保护函数来缩小类型范围，使得类型推导更加准确。
-function isString(value: any): value is string {
-  return typeof value === "string";
-}
+交叉类型用 `&`，表示“这个值要同时满足多个类型”。
 
-let value: any = "hello";
-if (isString(value)) {
-  console.log(value.length); // TypeScript 知道 value 是 string
-}
-在这个例子中，isString 是一个类型保护函数，帮助 TypeScript 判断 value 是否为 string，从而避免类型错误
-### 使用 unknown 替代 any
-any 会绕过 TypeScript 的类型检查，而 unknown 类型则会强制进行类型检查，减少潜在的错误。
-let value: unknown = "hello";
+所以：
+- 联合类型更像“或”
+- 交叉类型更像“且”
 
-// 需要做类型检查才能使用
-if (typeof value === "string") {
-  console.log(value.length); // 安全访问
-}
-## 类型推断与类型注解的区别
-TypeScript 会根据变量的初始值自动推断出变量的类型，这叫做类型推断。然而，在某些情况下，我们需要明确指定变量的类型，称为类型注解。类型推断使得代码更简洁，但类型注解可以确保代码更具可读性和可靠性。
-### 类型推断
-let num = 10;  // 推断为 number 类型
-let str = "hello";  // 推断为 string 类型
-### 类型注解
-let num: number = 10;  // 明确指定类型为 number
-let str: string = "hello";  // 明确指定类型为 string
-## 联合类型和交叉类型的区别
-### 联合类型 (Union Types)
-联合类型允许一个变量是多种类型之一，用 | 分隔不同类型。
+### 关键代码笔记
+
+```ts
 let value: string | number;
-value = "hello";  // 合法
-value = 10;       // 合法
-value = true;     // 错误，boolean 不在联合类型中
-### 交叉类型 (Intersection Types)
-交叉类型允许一个变量同时具备多个类型的属性，用 & 连接不同类型。
+value = "hello";
+value = 10;
+```
+
+```ts
 interface Person {
   name: string;
 }
@@ -120,32 +164,196 @@ const employee: EmployeePerson = {
   name: "John",
   jobTitle: "Developer"
 };
-交叉类型会将多个类型的属性合并成一个类型，变量必须同时具备所有类型的属性。
-## 如何理解 never 类型
-never 是 TypeScript 中的一个特殊类型，表示值永远不应该出现，常用于以下几种情况：
+```
 
-- 函数总是抛出错误，永远不会正常返回。
-- 函数存在死循环，永远不会结束。
-function throwError(message: string): never {
-throw new Error(message);
+---
+
+## 7. `interface` 和 `type` 有什么区别？怎么选？
+
+### 面试逐字稿
+
+这题面试非常高频，我一般会从四点回答。
+
+第一，`interface` 更适合描述对象结构，支持 `extends` 继承，也支持声明合并。
+
+第二，`type` 更灵活，不只是对象，还可以表示联合类型、交叉类型、函数类型、元组这些更复杂的类型表达。
+
+第三，类可以 `implements interface`，而 `type` 更多是类型别名层面的抽象。
+
+第四，从团队规范角度看，如果是描述对象形状，很多团队会优先用 `interface`；如果是复杂类型组合，优先用 `type`。
+
+一句话总结：
+- 对象结构优先 `interface`
+- 联合、交叉、函数类型这类复杂组合优先 `type`
+
+### 关键代码笔记
+
+```ts
+interface Animal {
+  name: string;
 }
 
-function infiniteLoop(): never {
-  while (true) {}
+interface Dog extends Animal {
+  breed: string;
 }
-never 类型常常用来确保代码逻辑的正确性，表示某些代码路径是无法到达的。
-## 类型守卫（Type Guards）
-类型守卫是 TypeScript 中的一种机制，允许开发者在运行时检查类型，并缩小类型范围。常见的类型守卫方法包括 typeof、instanceof 和自定义类型守卫。
-### typeof 类型守卫
-function isNumber(value: any): value is number {
+```
+
+```ts
+type AnimalType = {
+  name: string;
+};
+
+type DogType = AnimalType & {
+  breed: string;
+};
+```
+
+```ts
+// interface 支持声明合并
+interface Person {
+  name: string;
+}
+
+interface Person {
+  age: number;
+}
+
+const person: Person = { name: "John", age: 30 };
+```
+
+```ts
+// type 更适合函数类型和联合类型
+type Sum = (a: number, b: number) => number;
+type UnionType = string | number;
+```
+
+---
+
+## 8. `extends` 在 TypeScript 里有哪些作用？
+
+### 面试逐字稿
+
+`extends` 在 TypeScript 里不只是“继承类”，它至少有四类常见用法。
+
+第一类是类继承，表示子类继承父类属性和方法。
+
+第二类是接口继承，表示一个接口扩展另一个接口。
+
+第三类是泛型约束，表示某个泛型必须满足指定结构。
+
+第四类是条件类型里做判断，比如 `T extends U ? X : Y`。
+
+所以面试里如果只答“extends 就是继承”，其实是不够的。
+
+### 关键代码笔记
+
+```ts
+// 类继承
+class Animal {
+  eat() {
+    console.log("Eating...");
+  }
+}
+
+class Dog extends Animal {
+  bark() {
+    console.log("Barking...");
+  }
+}
+```
+
+```ts
+// 接口继承
+interface AnimalInfo {
+  name: string;
+  eat(): void;
+}
+
+interface DogInfo extends AnimalInfo {
+  breed: string;
+}
+```
+
+```ts
+// 泛型约束
+function getLength<T extends { length: number }>(arg: T): number {
+  return arg.length;
+}
+```
+
+```ts
+// 条件类型
+type IsString<T> = T extends string ? "Yes" : "No";
+
+type Result1 = IsString<string>; // "Yes"
+type Result2 = IsString<number>; // "No"
+```
+
+---
+
+## 9. 泛型怎么理解？为什么泛型很重要？
+
+### 面试逐字稿
+
+泛型可以理解成“类型层面的参数化”。也就是我们先写一个通用函数或通用类型，具体用什么类型，等使用时再传进去。
+
+它最大的价值是：
+- 复用逻辑
+- 保留类型信息
+- 避免为了通用性退回到 `any`
+
+一句话总结：泛型就是“既通用，又不丢类型”。
+
+### 关键代码笔记
+
+```ts
+function identity<T>(arg: T): T {
+  return arg;
+}
+
+identity<string>("hello");
+identity<number>(10);
+```
+
+```ts
+// 泛型约束
+function identity2<T extends string | number>(arg: T): T {
+  return arg;
+}
+```
+
+```ts
+// 默认类型参数
+function wrap<T = string>(value: T): T {
+  return value;
+}
+```
+
+---
+
+## 10. 类型守卫是什么？常见方式有哪些？
+
+### 面试逐字稿
+
+类型守卫的作用是在运行时做判断，同时让 TypeScript 在类型层面缩小范围，也就是我们常说的类型收窄。
+
+常见方式有：
+- `typeof`
+- `instanceof`
+- `in`
+- 自定义类型守卫函数
+
+在实际项目里，类型守卫最常见的作用就是处理联合类型和 `unknown`。
+
+### 关键代码笔记
+
+```ts
+function isNumber(value: unknown): value is number {
   return typeof value === "number";
 }
+```
 
-let value: any = 42;
-if (isNumber(value)) {
-  console.log(value.toFixed(2));  // TypeScript 知道 value 是 number
-}
-### instanceof 类型守卫
+```ts
 class Animal {
   name: string;
   constructor(name: string) {
@@ -162,176 +370,23 @@ class Dog extends Animal {
 function isDog(animal: Animal): animal is Dog {
   return animal instanceof Dog;
 }
+```
 
-let animal: Animal = new Dog("Rex");
-if (isDog(animal)) {
-  animal.bark();  // TypeScript 知道 animal 是 Dog 类型
-}
-## 异步编程中的类型
-在处理异步操作时，TypeScript 提供了多种方法来确保类型的正确性。Promise 是处理异步操作的基本方式，通常配合 async 和 await 使用。
-async function fetchData(): Promise {
-  return "Data loaded";
-}
+---
 
-async function handleData() {
-  const data = await fetchData();
-  console.log(data);  // TypeScript 知道 data 是 string 类型
-}
-## 模块化与命名空间的区别
-TypeScript 中，模块和命名空间都用于组织代码，但它们有明显的区别。
-### 模块（Modules）
-模块通过文件来组织，通常使用 import 和 export 语法。每个文件都可以视为一个模块。
-// math.ts
-export function add(a: number, b: number): number {
-  return a + b;
-}
+## 11. TypeScript 里如何理解 `this` 类型？
 
-// app.ts
-import { add } from './math';
-console.log(add(1, 2));
-### 命名空间（Namespaces）
-命名空间通过 namespace 关键字来组织代码，通常在单一文件中使用，避免全局变量污染。
-namespace MathUtil {
-  export function add(a: number, b: number): number {
-    return a + b;
-  }
-}
+### 面试逐字稿
 
-console.log(MathUtil.add(1, 2));
-模块化常常用于更大的项目，而命名空间在较小的项目中更为常见，但随着 TypeScript 和 ES6 模块的普及，命名空间的使用逐渐减少。
-## 泛型的高级用法
-泛型是 TypeScript 的强大特性之一，可以在函数、类和接口中使用，提供类型的复用。
-泛型是给函数、类或接口 定义一个“类型占位符”，可以在使用时再指定具体类型。
-它的好处是既保证类型安全，又提高复用性。
-### 限制泛型类型
-通过 extends 关键字，限制泛型类型必须是某个类型的子类。
-function identity<T extends string | number>(arg: T): T {
-  return arg;
-}
+在类方法里，`this` 通常会自动指向当前类实例，这部分比较自然。
 
-identity("hello");  // 合法
-identity(10);        // 合法
-identity(true);      // 错误，boolean 不符合类型约束
-### 默认类型参数
-泛型类型可以具有默认类型，方便开发者在使用时不指定类型。
-function wrap<T = string>(value: T): T {
-  return value;
-}
+但在普通函数、回调函数、事件处理器里，`this` 的类型可能不够明确，这时候可以通过 `this` 参数显式标注。
 
-wrap("hello");  // 默认使用 string 类型
-wrap(42);       // 可以传入其他类型
-## interface 和 type 的区别
+所以 TS 里的 `this` 问题，本质上不是 JS 的 `this` 机制变了，而是我们要把 `this` 的类型也描述清楚。
 
-1. 扩展（扩展类型的能力）
+### 关键代码笔记
 
-- interface 支持继承（通过 extends）其他接口或类，且可以通过声明合并的方式扩展。
-- type 也可以继承其他类型，但不支持声明合并。
-// interface 的扩展
-interface Animal {
-name: string;
-}
-
-interface Dog extends Animal {
-  breed: string;
-}
-
-// type 的扩展
-type AnimalType = {
-  name: string;
-}
-
-type DogType = AnimalType & {
-  breed: string;
-}
-2. 声明合并
-
-- interface 支持声明合并：如果定义了相同名称的多个接口，它们会自动合并为一个接口。
-interface Person {
-name: string;
-}
-
-interface Person {
-  age: number;
-}
-
-const person: Person = { name: "John", age: 30 }; // 合并后的接口
-
-- type 不支持声明合并，后声明的类型会覆盖前面声明的类型。
-
-type Person = {
-  name: string;
-}
-
-type Person = {
-  age: number;
-} // 错误，类型已被定义
-3. 用于函数类型
-
-- type 更适合用于定义复杂的函数类型或联合类型。
-type Sum = (a: number, b: number) => number; // 定义函数类型
-
-type UnionType = string | number; // 定义联合类型
-interface 用于定义结构化的对象和类，但也可以用于函数类型的定义，但通常使用 type 更为简洁。
-interface Sum {
-  (a: number, b: number): number;
-}
-4. 赋值兼容性
-
-- interface 更适合用于定义对象的结构，并且可以通过扩展实现复用。
-- type 更灵活，可以定义联合类型、交叉类型等，因此可以更好地处理复杂的类型结构。
-总结：如果需要定义对象的结构并且需要扩展，优先使用 interface。如果需要定义复杂的类型（如联合类型、交叉类型、函数类型等），则优先使用 type。
-any 和 unknown 的区别
-any 和 unknown 是 TypeScript 中两种特殊类型，它们都有绕过类型检查的特性，但二者的行为不同。
-
-1. any 类型
-
-any 表示“任何类型”，它允许你赋值任何类型的值，并且 TypeScript 不会进行任何类型检查。any 会关闭类型检查，因此会导致可能的运行时错误。
-let value: any = 10;
-value = "hello"; // 合法
-value = true;    // 合法
-value = {};      // 合法
-
-let num: number = value;  // 可能出错，因为 `value` 的类型是 `any`
-2. unknown 类型
-unknown 也是一种表示“任何类型”的类型，但它比 any 更安全。unknown 不允许直接赋值给其他类型的变量，除非先做类型检查。
-let value: unknown = 10;
-value = "hello"; // 合法
-value = true;    // 合法
-value = {};      // 合法
-
-let num: number = value;  // 错误，不能直接赋值，需要类型检查
-
-if (typeof value === "number") {
-  num = value;  // 合法，已做类型检查
-}
-总结：any 可以关闭类型检查，容易引发错误；unknown 提供了更多的类型安全性，必须经过类型检查后才能使用。
-TypeScript 中的 void 与 never 的区别
-void 和 never 是 TypeScript 中常见的返回类型，它们有显著的区别。
-
-1. void 类型
-
-void 表示函数没有返回值。通常用于函数类型中，表示该函数不返回任何值。
-function logMessage(message: string): void {
-  console.log(message);
-}
-
-let result: void = logMessage("Hello"); // result 不包含任何值
-2. never 类型
-never 表示该函数永远不会返回值，通常用于死循环或抛出错误的函数。
-function throwError(message: string): never {
-  throw new Error(message);
-}
-
-function infiniteLoop(): never {
-  while (true) {}
-}
-总结：void 表示函数没有返回值，而 never 表示函数根本不返回（如抛出错误、死循环等）。
-TypeScript 中的 this 类型
-在 TypeScript 中，this 的类型是一个比较特殊的部分，尤其是在类方法、函数以及回调中，this 的类型常常会引起问题。
-
-1. 类中的 this
-
-在类的方法中，this 类型自动指向当前类的实例。
+```ts
 class Person {
   name: string;
   constructor(name: string) {
@@ -342,107 +397,197 @@ class Person {
     console.log(`Hello, my name is ${this.name}`);
   }
 }
+```
 
-const person = new Person("John");
-person.greet(); // Hello, my name is John
-2. 函数中的 this
-在普通函数中，this 指向全局对象（在浏览器中是 window，在严格模式下是 undefined）。
-function showThis() {
-  console.log(this);  // 在非严格模式下，指向 window
-}
-
-showThis();
-3. 使用 this 的类型注解
-可以通过类型注解来明确指定 this 的类型，确保它指向正确的对象。
+```ts
 function logName(this: Person) {
   console.log(this.name);
 }
+```
 
-const person = new Person("Alice");
-logName.call(person);  // Alice
-总结：在 TypeScript 中，this 的类型通常是自动推导的，但在某些情况下，尤其是在回调函数和事件处理器中，可能需要显式地指定 this 的类型。
-undefined 和 null 的区别
-在 TypeScript 中，undefined 和 null 都表示缺少值，但它们有不同的用途和含义。
+---
 
-1. undefined
+## 12. TypeScript 里 `null` 和 `undefined` 怎么理解？
 
-undefined 表示变量已声明但尚未赋值。
+### 面试逐字稿
+
+`undefined` 更偏“还没有值”，比如变量声明了但没赋值，或者对象访问不存在属性。
+
+`null` 更偏“明确表示这里就是空值”。
+
+在开启严格模式，尤其是 `strictNullChecks` 之后，`null` 和 `undefined` 不会再随便赋给别的类型，这也是 TypeScript 类型安全的重要一部分。
+
+### 关键代码笔记
+
+```ts
 let x: number | undefined;
-console.log(x);  // undefined
+console.log(x); // undefined
+```
 
-let obj = {};
-console.log(obj.nonExistentProperty);  // undefined
-2. null
-null 表示缺少值或空对象。
+```ts
 let y: number | null = null;
-console.log(y);  // null
-总结：undefined 通常表示变量未被初始化，而 null 表示故意为空值。
-TypeScript 在前端项目中的优缺点
-优点
+console.log(y); // null
+```
 
-1. 类型安全
+---
 
-TypeScript 是静态类型语言，支持强类型检查，这有助于在开发阶段捕获类型错误，从而减少运行时错误。编译时的类型检查使得代码更具可靠性。
-2. 更好的代码提示和自动补全
-由于 TypeScript 提供了类型信息，IDE（如 VS Code）能提供更精确的自动补全、代码提示和错误提示，提升开发效率。
-3. 增强的可维护性
-TypeScript 通过强类型和接口系统帮助开发者更好地理解和维护代码，尤其是在团队合作时，其他开发人员可以清晰地了解每个变量和函数的预期类型和行为。
-4. 兼容 JavaScript
-TypeScript 是 JavaScript 的超集，支持现有的 JavaScript 代码，可以逐步迁移已有项目，也可以与现有的 JavaScript 库兼容使用。
-5. 类型推导和类型推断
-TypeScript 不仅允许手动定义类型，还会自动推导和推断类型，减少了类型注解的繁琐，提升开发体验。
-6. 支持最新的 JavaScript 特性
-TypeScript 支持最新的 JavaScript 特性（如 async/await、ES模块等），并且在转换为 JavaScript 时自动进行兼容性处理，保证代码在不同浏览器中的兼容性。
-7. 面向对象编程支持
-TypeScript 支持类、接口、继承和多态等面向对象的编程特性，使得代码结构更加清晰、易于扩展和维护。
-8. 广泛的社区支持
-TypeScript 拥有庞大的开发者社区和大量的第三方库的类型声明，几乎所有流行的前端框架（如 React、Vue、Angular）都提供了 TypeScript 支持和类型定义文件。
-缺点
+## 13. 模块化和命名空间有什么区别？
 
-1. 学习曲线
+### 面试逐字稿
 
-对于没有使用过静态类型语言的开发者来说，TypeScript 的学习曲线可能稍陡，特别是在类型系统、泛型、接口和类型推断等概念上。
-2. 编译过程
-TypeScript 需要经过编译才能执行，而 JavaScript 是直接执行的。虽然 TypeScript 编译速度较快，但这个过程仍然需要时间，并且需要配置适当的构建工具。
-3. 增加代码量
-TypeScript 的类型注解会使代码比 JavaScript 更冗长，尤其是对于复杂的类型定义和泛型等，可能使得代码更加难以维护，尤其是项目初期没有正确使用类型定义时。
-4. 与第三方库的兼容性问题
-虽然大多数流行的库都有 TypeScript 类型定义文件，但一些小众库或没有类型定义的库可能会导致类型错误，甚至需要手动编写类型定义，增加了额外的工作量。
-5. 调试困难
-由于 TypeScript 会编译为 JavaScript，调试时需要源映射文件（source map），这有时可能导致调试过程中出现问题，特别是在开发过程中，开发者需要确保调试工具配置正确。
-6. 过度类型化
-TypeScript 的强类型系统可能导致一些开发者过度依赖类型注解，尤其是对于简单的逻辑和数据，过多的类型定义会导致冗余和代码复杂化。
-TypeScript 在前端项目中的应用
-在前端项目中，TypeScript 已经成为开发者的首选，尤其是在大型项目和团队合作中。以下是我在前端项目中使用 TypeScript 的一些常见场景：
+模块化是现代前端的主流方案，通常基于文件，通过 `import` 和 `export` 组织代码。
 
-1. React 项目
+命名空间是 TypeScript 早期的一种组织方式，更适合单文件或老项目场景，现在使用频率已经明显下降。
 
-TypeScript 与 React 配合使用，可以显著提升开发体验。通过定义组件的 Props 和 State 类型，TypeScript 能帮助避免一些常见的类型错误。
+所以如果面试官问怎么选，我会直接说：
+- 新项目优先模块化
+- 命名空间更多是历史方案，了解即可
+
+### 关键代码笔记
+
+```ts
+// math.ts
+export function add(a: number, b: number): number {
+  return a + b;
+}
+
+// app.ts
+import { add } from "./math";
+console.log(add(1, 2));
+```
+
+```ts
+namespace MathUtil {
+  export function add(a: number, b: number): number {
+    return a + b;
+  }
+}
+```
+
+---
+
+## 14. 异步编程在 TypeScript 里怎么写类型？
+
+### 面试逐字稿
+
+异步函数最核心的是把返回值写清楚，一般就是 `Promise<T>`。
+
+这样 `await` 之后拿到的值是什么类型，TypeScript 就能继续往下推断。
+
+所以异步编程在 TS 里最重要的不是语法，而是把 Promise 的结果类型描述准确。
+
+### 关键代码笔记
+
+```ts
+async function fetchData(): Promise<string> {
+  return "Data loaded";
+}
+
+async function handleData() {
+  const data = await fetchData();
+  console.log(data); // string
+}
+```
+
+```ts
+interface User {
+  id: number;
+  name: string;
+}
+
+async function fetchUser(id: number): Promise<User> {
+  const response = await fetch(`/api/user/${id}`);
+  const data: User = await response.json();
+  return data;
+}
+```
+
+---
+
+## 15. 如何在 TypeScript 中减少 IDE 报错和类型不准的问题？
+
+### 面试逐字稿
+
+这个问题我一般会从工程实践角度回答。
+
+第一，打开严格模式，尤其是 `strict`、`noImplicitAny`、`strictNullChecks`。
+
+第二，不要滥用 `any`，能用 `unknown`、联合类型、泛型的时候尽量用更精确的类型。
+
+第三，对外部边界写清楚类型，比如接口响应、组件 Props、函数返回值。
+
+第四，遇到复杂联合类型时，配合类型守卫做收窄，而不是直接断言糊过去。
+
+类型断言不是不能用，但应该是最后手段，而不是默认手段。
+
+### 关键代码笔记
+
+```json
+{
+  "compilerOptions": {
+    "strict": true
+  }
+}
+```
+
+```ts
+let value: unknown = "hello";
+
+if (typeof value === "string") {
+  console.log(value.length);
+}
+```
+
+```ts
+let value2: any = "hello";
+let strLength: number = (value2 as string).length;
+```
+
+---
+
+## 16. TypeScript 在 React / Vue 项目里常见怎么用？
+
+### 面试逐字稿
+
+在 React 里，最常见的是给 Props、State、Hooks 返回值、事件对象和接口响应写类型。
+
+在 Vue 里，最常见的是给 `props`、`ref`、`computed`、状态管理和 API 数据写类型。
+
+如果是工程实践，我会更强调两类场景：
+- 组件边界类型
+- 接口数据类型
+
+因为这两类地方一旦类型清楚，整个项目的稳定性会提升很多。
+
+### 关键代码笔记
+
+```ts
+// React Props
 interface ButtonProps {
   label: string;
   onClick: () => void;
 }
+```
 
-const Button: React.FC = ({ label, onClick }) => (
-  {label}
-);
-2. Vue 项目
-在 Vue 3 中，TypeScript 也得到了很好的支持。Vue 3 的 Composition API 和 defineComponent 函数与 TypeScript 的结合非常自然，可以用来为组件定义精确的类型。
-import { defineComponent, ref } from 'vue';
+```ts
+// Vue 3
+import { defineComponent, ref } from "vue";
 
 export default defineComponent({
-  name: 'Counter',
+  name: "Counter",
   setup() {
     const count = ref(0);
     const increment = () => count.value++;
     return { count, increment };
   }
 });
-3. Vuex / Pinia 状态管理
-在使用 Vuex 或 Pinia 进行状态管理时，TypeScript 可以帮助确保状态和 getters、actions 的类型正确，避免在处理应用状态时出错。
-import { defineStore } from 'pinia';
+```
 
-export const useStore = defineStore('counter', {
+```ts
+// Pinia
+import { defineStore } from "pinia";
+
+export const useStore = defineStore("counter", {
   state: () => ({
     count: 0
   }),
@@ -452,63 +597,44 @@ export const useStore = defineStore('counter', {
     }
   }
 });
-4. 表单处理
-TypeScript 在处理复杂表单时尤其有用，可以帮助确保表单数据类型的正确性，并通过类型推导减少错误。
-interface FormData {
-  name: string;
-  age: number;
-}
+```
 
-const handleSubmit = (data: FormData) => {
-  console.log(data.name, data.age);
-};
-5. API 请求和响应类型定义
-TypeScript 可以用来定义 API 请求和响应的数据结构，确保后端返回的数据类型与前端的预期类型一致。
-interface User {
-  id: number;
-  name: string;
-}
+---
 
-async function fetchUser(id: number): Promise {
-  const response = await fetch(`/api/user/${id}`);
-  const data: User = await response.json();
-  return data;
-}
-6. 工具库开发
-TypeScript 适用于构建工具库，因为它能够提供明确的类型定义，减少了开发和使用这些库时可能出现的错误。
-7. 单元测试和类型检查
-在编写单元测试时，TypeScript 的类型检查可以帮助发现潜在的错误，确保测试代码和业务代码的一致性。
+## 17. 装饰器怎么理解？
 
-装饰器
-原函数 = fn
+### 面试逐字稿
 
-新函数 = function() {
-  // 加点东西
-  fn()
-  // 再加点东西
-}
+装饰器本质上是一个函数，用来包装类、方法、属性或者参数，在不改原始核心逻辑的情况下增强它的行为。
 
-function logDecorator(fn) {
-  return function (...args) {
-    console.log('函数开始执行');
+如果从思想上讲，它和高阶函数很像，本质是“函数增强”。
+
+实际场景里常见的用途有：
+- 日志
+- 权限控制
+- 缓存
+- 埋点
+
+不过要注意，装饰器更偏语法层增强，不是所有项目都会默认启用。
+
+### 关键代码笔记
+
+```ts
+function logDecorator(fn: Function) {
+  return function (...args: unknown[]) {
+    console.log("函数开始执行");
     const result = fn.apply(this, args);
-    console.log('函数执行结束');
+    console.log("函数执行结束");
     return result;
-  }
+  };
 }
+```
 
-function add(a, b) {
-  return a + b;
-}
-
-const newAdd = logDecorator(add);
-
-newAdd(1, 2);
-
-function log(target, key, descriptor) {
+```ts
+function log(target: unknown, key: string, descriptor: PropertyDescriptor) {
   const original = descriptor.value;
 
-  descriptor.value = function (...args) {
+  descriptor.value = function (...args: unknown[]) {
     console.log(`调用方法 ${key}，参数:`, args);
     const result = original.apply(this, args);
     console.log(`方法 ${key} 执行结束`);
@@ -517,51 +643,12 @@ function log(target, key, descriptor) {
 
   return descriptor;
 }
+```
 
-class Calculator {
-  @log
-  add(a, b) {
-    return a + b;
-  }
-}
-装饰器本质是一个函数，用来包装类或方法，通过修改 descriptor 来增强原有行为，比如添加日志、权限控制等，本质上是一种函数增强（高阶函数）的应用。
-装饰器执行分为两个阶段：
+---
 
-1. 收集阶段从上到下
-2. 执行阶段从下到上（类似函数嵌套）
+## 18. 快速收尾模板
 
-同一位置的多个装饰器按“由下到上”执行；
- 不同类型的装饰器执行顺序是：参数 → 方法 → 属性 → 类。
+如果面试官问的是开放题，可以这样收尾：
 
-#### interface & type
-
-1. **合并：**
-
-- **interface** 可以多次声明，会自动合并成一个接口。这使得可以在不同地方扩展同一个接口。
-- **type** 不能被多次声明合并，如果尝试合并多次相同名称的 **type** 会导致编译错误。
-
-1. **可选属性：**
-
-- 在 **interface** 中，你可以使用 **?** 来标记属性为可选。
-- 在 **type** 中，你可以使用联合类型 **| undefined** 来标记属性为可选。
-
-1. **扩展：**
-
-- **interface** 可以扩展其他接口或类，通过 **extends** 关键字。
-- **type** 可以使用交叉类型 **&** 来组合多个类型。
-
-1. **类的实现：**
-
-- **interface** 可以被类实现（使用 **implements** 关键字），以确保类拥有特定的结构。
-- **type** 不能被类实现。
-
-1. **类型声明与赋值：**
-
-- **interface** 可以被用于声明函数、类、变量等，但不能直接赋值给一个变量。
-- **type** 可以被用于声明函数、类、变量等，也可以直接赋值给一个变量。
-
-1. **适用场景：**
-
-- 使用 **interface** 来描述对象的形状、类的实现和拓展，以及合并多个接口。
-- 使用 **type** 来定义复杂的类型，如联合类型、交叉类型、类型别名等。
-
+“这个问题我一般会从类型系统的目标、核心概念、工程实践和常见取舍四个角度回答。TypeScript 题最好不要只讲概念，最好顺带给一个类型定义或者代码例子，这样更像真的用过。” 
