@@ -35,25 +35,12 @@ img {
 
 ## 3. `src` 和 `href` 有什么区别？
 
-### 面试逐字稿
-
-`href` 更强调“建立当前文档和外部资源之间的关联”，比如 `<a>` 和 `<link>`。它表示页面和某个资源之间有链接关系。
-
-`src` 更强调“把资源真正加载进来并参与当前文档”，比如 `<img>`、`<script>`、`<iframe>`。
-
-最常见的理解方式是：
-- `href` 是关联资源
-- `src` 是引入资源
-
-再往前走一步，浏览器处理它们的方式也不一样。比如 `<script src>` 在默认情况下会阻塞解析，而 `<link href>` 不阻塞 DOM 解析，但会影响渲染。
-
----
+- `src` 更强调“把资源真正加载进来并参与当前文档”，比如 `<img>`、`<script>`、`<iframe>`。
+- `href` 更强调“建立当前文档和外部资源之间的关联”，比如 `<a>` 和 `<link>`。它表示页面和某个资源之间有链接关系。
+- 浏览器处理它们的方式也不一样。`<script src>` 在默认情况下会阻塞解析，而 `<link href>` 不阻塞 DOM 解析，但会影响渲染。
 
 ## 4. `defer` 和 `async` 有什么区别？
-
-### 面试逐字稿
-
-如果 `<script>` 没有加 `defer` 或 `async`，浏览器解析到它时会暂停 HTML 解析，先下载并执行脚本，这就是最典型的阻塞场景。
+如果 `<script>` 没有加 `defer` 或 `async`，浏览器解析到它时会暂停 HTML 解析，先下载并执行脚本。
 
 `defer` 和 `async` 都能让脚本并行下载，但执行时机不同：
 - `defer`：不会阻塞 HTML 解析，等 DOM 解析完成后再按顺序执行
@@ -61,68 +48,27 @@ img {
 
 所以如果脚本之间有依赖，优先考虑 `defer`；如果是独立脚本，比如埋点、广告、统计，更适合 `async`。
 
-### 关键代码笔记
-
-```html
-<script src="main.js" defer></script>
-<script src="analytics.js" async></script>
-```
-
----
-
 ## 5. `preload` 和 `prefetch` 有什么区别？
 
-### 面试逐字稿
-
-`preload` 是为当前页面马上要用到的关键资源做预加载，它优先级高，目标是优化当前页面首屏。
-
-`prefetch` 是为用户接下来可能访问的资源提前准备，它优先级更低，通常在浏览器空闲时加载，目标是优化下一跳体验。
-
-一句话总结：
-- `preload` 优化当前页
-- `prefetch` 优化未来页
-
-### 关键代码笔记
+- `preload` 是为当前页面马上要用到的关键资源做预加载，它优先级高，目标是优化当前页面首屏。
+- `prefetch` 是为用户接下来可能访问的资源提前准备，它优先级更低，通常在浏览器空闲时加载，目标是优化下一跳体验。
 
 ```html
 <link rel="preload" href="/main.css" as="style">
 <link rel="prefetch" href="/next-page-data.json">
 ```
 
----
-
 ## 6. HTML 语义化怎么理解？
-
-### 面试逐字稿
-
 HTML 语义化的核心是用合适的标签表达合适的内容结构，而不是只为了样式去堆 `div`。
 
-它的价值主要有三点：
 - 对 SEO 更友好，搜索引擎更容易理解页面结构
 - 对可访问性更友好，读屏软件更容易识别内容层级
 - 对开发维护更友好，代码结构更清晰
 
 比如头部用 `header`，导航用 `nav`，主体内容用 `main`，文章用 `article`，分区用 `section`，页脚用 `footer`。
 
-### 关键代码笔记
-
-```html
-<header></header>
-<nav></nav>
-<main>
-  <article></article>
-  <section></section>
-</main>
-<footer></footer>
-```
-
----
-
 ## 7. HTML5 新增了哪些常用能力？
 
-### 面试逐字稿
-
-常见我会答这几类：
 - 语义化标签，比如 `header`、`nav`、`article`
 - 多媒体标签，比如 `audio`、`video`
 - 本地存储，比如 `localStorage`、`sessionStorage`
@@ -130,38 +76,13 @@ HTML 语义化的核心是用合适的标签表达合适的内容结构，而不
 - 后台线程能力，比如 `Web Worker`
 - 地理位置、通知等浏览器能力
 
-如果面试官更偏工程，我会重点讲语义化标签、本地存储和 Worker。
-
----
-
-## 8. `iframe` 怎么理解？优缺点是什么？
-
-### 面试逐字稿
-
-`iframe` 的作用是在一个页面里嵌入另一个页面或第三方内容。
-
-优点是隔离性强，适合嵌入外部系统、第三方页面。
-缺点也比较明显：
-- 不利于 SEO
-- 会影响首屏性能
-- 通信和样式统一比较麻烦
-- 容易出现滚动、适配、登录态共享问题
-
-所以它适合强隔离、弱交互的场景，但不太适合复杂主应用体验。
-
----
-
-## 9. `Web Worker` 怎么理解？
-
-### 面试逐字稿
+## 8. `Web Worker` 怎么理解？
 
 `Web Worker` 是浏览器提供的多线程能力，允许把耗时 JS 逻辑放到后台线程执行，避免阻塞主线程。
 
 主线程负责 UI 渲染和 DOM 操作，Worker 线程适合做计算密集型任务，比如大数据处理、图像处理、复杂解析。
 
 它的限制也很明确：不能直接操作 DOM，也不能直接访问 `window`，通常通过 `postMessage` 和主线程通信。
-
-### 关键代码笔记
 
 ```js
 // main.js
@@ -172,13 +93,7 @@ worker.onmessage = (e) => {
 };
 ```
 
----
-
-## 10. 常见表单控件有哪些？
-
-### 面试逐字稿
-
-面试里一般不会问太深，但最好把常见控件说全：
+## 9. 常见表单控件有哪些？
 - 单选框 `radio`
 - 复选框 `checkbox`
 - 输入框 `input`
@@ -186,45 +101,24 @@ worker.onmessage = (e) => {
 - 多行文本 `textarea`
 - 按钮 `button`
 
-补一句小细节会更好：同一组单选框要靠相同的 `name` 实现互斥。
-
-### 关键代码笔记
-
-```html
-<input type="radio" name="gender">
-<input type="checkbox">
-
-<select>
-  <option>选项1</option>
-</select>
-
-<textarea></textarea>
-```
-
----
-
-## 11. Flex 布局怎么理解？
-
-### 面试逐字稿
-
-Flex 是一维布局，核心是沿主轴分配空间，特别适合做导航栏、按钮组、列表、居中布局这些组件级排版。
+## 10. Flex 布局怎么理解？
+Flex 是一维布局，核心是沿主轴分配空间，适合做导航栏、按钮组、列表、居中布局这些组件级排版。
 
 父容器常用属性有：
-- `flex-direction`：决定主轴方向
-- `justify-content`：主轴对齐
-- `align-items`：交叉轴对齐
+- `flex-direction`：决定主轴方向：`row`、`row-reverse`、`column`、`column-reverse`
+- `justify-content`：主轴对齐：`flex-start`、`flex-end`、`center`、`space-between`、`space-around`、`space-evenly`
+- `align-items`：交叉轴对齐：`flex-start`、`flex-end`、`center`、`baseline`、`stretch`
 - `flex-wrap`：是否换行
 
 子元素常用属性有：
-- `flex-grow`：剩余空间怎么分
-- `flex-shrink`：空间不足怎么缩
-- `flex-basis`：分配前的基础尺寸
+- `flex-grow`：当父容器有剩余空间时，子元素如何分配剩余空间
+- `flex-shrink`：当父容器空间不足时，子元素如何缩小
+- `flex-basis`：子元素在分配空间前的基础尺寸
 - `align-self`：单独覆盖对齐方式
 
-面试里经常会追问 `flex: 1`，我一般会直接答：
+面试里经常会追问 `flex: 1` vs `flex: auto`：
 `flex: 1` 等价于 `flex: 1 1 0%`，表示可以放大、可以缩小、基础尺寸按 0 算。
-
-### 关键代码笔记
+`flex: auto` 等价于 `flex: 1 1 auto`，表示可以放大、可以缩小、基础尺寸按内容算。
 
 ```css
 .container {
@@ -248,26 +142,16 @@ Flex 是一维布局，核心是沿主轴分配空间，特别适合做导航栏
 .b { flex: auto; } /* 1 1 auto */
 ```
 
----
-
-## 12. Grid 布局和 Flex 有什么区别？
-
-### 面试逐字稿
+## 11. Grid 布局和 Flex 有什么区别？
 
 Flex 是一维布局，适合控制一行或者一列里的排列关系。
 Grid 是二维布局，适合同时控制行和列，更适合页面级布局、复杂网格、仪表盘、画廊这类场景。
 
-一句话总结：
-- Flex 更适合组件级布局
-- Grid 更适合页面级布局
-
-### 关键代码笔记
-
 ```css
 .grid-nine {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr); // 3列，每列宽度为1fr
+  grid-template-rows: repeat(3, 1fr); // 3行，每行高度为1fr
   gap: 10px;
 }
 ```
@@ -275,47 +159,37 @@ Grid 是二维布局，适合同时控制行和列，更适合页面级布局、
 ```css
 .grid-holy-grail {
   display: grid;
-  grid-template-columns: 200px 1fr 200px;
-  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 200px 1fr 200px; // 左侧宽度200px，中间自适应，右侧宽度200px
+  grid-template-rows: auto 1fr auto; // 顶部高度自适应，中间自适应，底部高度自适应
   grid-template-areas:
     "header header header"
     "left center right"
     "footer footer footer";
-  min-height: 100vh;
+  min-height: 100vh; // 最小高度为视口高度
 }
 ```
 
 ```css
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); // 自动适应，最小宽度240px，最大宽度1fr
   gap: 16px;
 }
 ```
 
----
+## 12. 两栏 / 三栏布局怎么实现？
 
-## 13. 两栏 / 三栏布局怎么实现？
-
-### 面试逐字稿
-
-这题我一般按“老方案 + 现代方案”来答。
-
-两栏布局通常是左侧固定、右侧自适应。可以用：
-- 浮动 + `margin-left`
-- 浮动 + BFC
-- Flex
-- 绝对定位
+两栏布局通常是左侧固定、右侧自适应。可以使用以下方式：
+- 浮动 + `margin-left`：左侧元素浮动，右侧元素使用 `margin-left` 撑开
+- 浮动 + BFC：左侧元素浮动，右侧元素使用 BFC 撑开
+- Flex：使用 Flex 布局，左侧元素固定宽度，右侧元素 flex: 1
+- 绝对定位：左侧元素绝对定位，右侧元素使用 `left` 属性撑开
 
 三栏布局通常是左右固定、中间自适应。可以用：
-- 浮动 + 中间 `margin`
-- 绝对定位
-- Flex
-- Grid
-
-如果让我推荐现代方案，我会优先说 Flex 和 Grid，因为语义更清晰，维护成本更低。
-
-### 关键代码笔记
+- 浮动 + 中间 `margin`：左右元素浮动，中间元素使用 `margin` 撑开
+- 绝对定位：左侧元素绝对定位，右侧元素使用 `left` 属性撑开
+- Flex：使用 Flex 布局，左侧元素固定宽度，右侧元素 flex: 1
+- Grid：使用 Grid 布局，左侧元素固定宽度，右侧元素宽度自适应
 
 ```css
 /* 两栏：flex */
@@ -338,23 +212,15 @@ Grid 是二维布局，适合同时控制行和列，更适合页面级布局、
 }
 ```
 
----
-
-## 14. 浮动是什么？怎么清除浮动？
-
-### 面试逐字稿
+## 13. 浮动是什么？怎么清除浮动？
 
 浮动会让元素脱离正常文档流，并向左或向右移动，直到碰到父容器边缘或者其他浮动元素。
 
-它最初是为图文环绕设计的，但实际开发中也常被拿来做布局。最大的问题是父元素高度塌陷，因为子元素浮动后，父元素可能感知不到它的高度。
+最大的问题是父元素高度塌陷，因为子元素浮动后，父元素可能感知不到它的高度，从而导致父元素高度塌陷。
 
 清除浮动的常见方式有两个：
-- 触发父元素 BFC
-- 用伪元素 clearfix
-
-现在新项目里更推荐用 Flex 或 Grid 做布局，但浮动和清浮动还是很经典的面试题。
-
-### 关键代码笔记
+- 触发父元素 BFC：通过 `overflow: hidden`、`display: inline-block`、`position: absolute`、`position: fixed` 等属性触发父元素 BFC
+- 用伪元素 clearfix：通过伪元素 `::after` 触发 BFC，然后清除浮动
 
 ```css
 .parent::after {
@@ -364,18 +230,14 @@ Grid 是二维布局，适合同时控制行和列，更适合页面级布局、
 }
 ```
 
----
-
-## 15. BFC 是什么？有什么用？
-
-### 面试逐字稿
+## 14. BFC 是什么？有什么用？
 
 BFC 全称是块级格式化上下文，可以把它理解成一个独立的布局环境。BFC 内部的元素不会影响外部，外部元素也不会轻易干扰内部布局。
 
-面试里最常讲它的三个作用：
-- 清除浮动，解决父元素高度塌陷
-- 避免浮动元素和普通块元素重叠
-- 阻止垂直方向的 `margin` 合并
+它的作用有：
+- 清除浮动导致的父元素高度塌陷
+- 避免浮动元素和普通块元素重叠问题
+- 阻止垂直 Margin 合并，父子元素或相邻元素的 margin 不再发生合并
 
 常见触发方式有：
 - `overflow: hidden/auto/scroll`
@@ -383,32 +245,11 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 - `position: absolute/fixed`
 - `float` 不为 `none`
 
-### 关键代码笔记
-
-```css
-.bfc {
-  overflow: hidden;
-}
-```
-
----
-
-## 16. 元素怎么水平垂直居中？
-
-### 面试逐字稿
-
-如果只讲现代方案，我最推荐 Flex：
+## 15. 元素怎么水平垂直居中？
+- 如果是单行文本垂直居中，也可以用 `line-height` 等于高度。
+- 如果是兼容性更强的经典方案，可以用 `position + transform`。
+- 最推荐使用 Flex 布局：
 `display: flex; justify-content: center; align-items: center;`
-
-如果是单行文本垂直居中，也可以用 `line-height` 等于高度。
-如果是兼容性更强的经典方案，可以用 `position + transform`。
-
-所以最好按场景回答：
-- 单行文本：`line-height`
-- 普通居中：Flex
-- 经典兼容：`position + transform`
-
-### 关键代码笔记
 
 ```css
 .center {
@@ -425,43 +266,20 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
   left: 50%;
   transform: translate(-50%, -50%);
 }
-```
 
-```css
-/* 弹窗居中 */
-.mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-}
-
-.modal {
-  position: fixed;
+.center {
+  position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  background: #fff;
-  padding: 24px;
+  transform: translate(-1/2宽度, -1/2高度);
 }
 ```
 
----
+## 16. 盒模型怎么理解？
 
-## 17. 盒模型怎么理解？
-
-### 面试逐字稿
-
-所有 HTML 元素都可以看成一个盒子，盒模型由四部分组成：
-- `content`
-- `padding`
-- `border`
-- `margin`
-
+所有 HTML 元素都可以看成一个盒子，盒模型由四部分组成：content、padding、border、margin。
 默认是 `content-box`，也就是 `width` 和 `height` 只算内容区，不包含 `padding` 和 `border`。
-
-如果设置成 `border-box`，那 `width` 和 `height` 就包含内容区、内边距和边框，这种方式更适合工程开发，因为不容易算错宽高。
-
-### 关键代码笔记
+如果设置成 `border-box`，那 `width` 和 `height` 就包含内容区、内边距和边框。
 
 ```css
 * {
@@ -516,21 +334,14 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 }
 ```
 
----
-
-## 18. CSS 选择器优先级怎么计算？
-
-### 面试逐字稿
-
-优先级常见可以这样记：
+## 17. CSS 选择器优先级怎么计算？
+优先级常见可以这样记：!important > 内联样式 > id > 类、属性、伪类 > 标签、伪元素
 - 内联样式：1000
 - `id`：100
 - 类、属性、伪类：10
 - 标签、伪元素：1
 
-比较时从高位往低位比，谁大谁生效。如果权重一样，就看谁写在后面。
-
-面试里最好顺带补一句：`!important` 会强行提升优先级，但工程里不建议滥用。
+比较时从高位往低位比，谁大谁生效。如果权重一样，就看谁写在后面，`!important` 会强行提升优先级，但工程里不建议滥用。
 
 ---
 
