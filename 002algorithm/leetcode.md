@@ -1,30 +1,24 @@
 # 数组
-
-## 1. 合并两个有序数组
-
+## 1. 合并两个有序数组 (T3)
 ```js
 var merge = function(nums1, m, nums2, n) {
-    let p1 = 0, p2 = 0;
-    const sorted = new Array(m + n).fill(0);
-    let cur = 0;
-    while (p1 < m && p2 < n){
-        if (nums1[p1] < nums2[p2]){
-            sorted[cur++] = nums1[p1++];
-        }else{
-            sorted[cur++] = nums2[p2++];
+    let p = m - 1, q = n - 1;
+    let k = m + n - 1;
+    while (p >= 0 && q >= 0) {
+        if (nums1[p] > nums2[q]) {
+            nums1[k--] = nums1[p--];
+        } else {
+            nums1[k--] = nums2[q--];
         }
     }
-    while (p1 < m){
-        sorted[cur++] = nums1[p1++];
+    while (q >= 0) {
+        nums1[k--] = nums2[q--];
     }
-    while (p2 < n){
-        sorted[cur++] = nums2[p2++];
-    }
+    return nums1;
 };
 ```
 
 ## 2. 合并两个有序链表
-
 ```js
 var mergeTwoLists = function(list1, list2) {
     const dummy = new ListNode(-1);
@@ -207,7 +201,6 @@ function BubbleSort(nums) {
 ```
 
 # 哈希 和 Set 
-
 ## 7. 两数之和
 
 ```js
@@ -274,7 +267,6 @@ var longestConsecutive = function(nums) {
 
 
 # 双指针
-
 ## 10. 移动零
 
 right 指针负责遍历数组，left 指针指向下一个非零元素应该放的位置。
@@ -667,7 +659,7 @@ var convertToBaseN = function(num, base) {
 };
 ```
 
-## 21. 版本比较
+## 24. 版本比较 (T2)
 给你两个 版本号字符串 version1 和 version2 ，请你比较它们。版本号由被点 '.' 分开的修订号组成。修订号的值 是它 转换为整数 并忽略前导零。
 比较版本号时，请按 从左到右的顺序 依次比较它们的修订号。如果其中一个版本字符串的修订号较少，则将缺失的修订号视为 0。
 ```js
@@ -685,7 +677,7 @@ var compareVersion = function(version1, version2) {
 };
 ```
 
-## 22. 字符串相加
+## 25. 字符串相加
 ```js
 var addStrings = function(num1, num2) {
     const res = [];
@@ -704,7 +696,7 @@ var addStrings = function(num1, num2) {
 };
 ```
 
-## 23. 有效的回文串
+## 26. 有效的回文串
 ```js
 var isPalindrome = function(s) {
   s = s.toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -716,7 +708,7 @@ var isPalindrome = function(s) {
 };
 ```
 
-## 24. 最长公共前缀
+## 27. 最长公共前缀
 ```js
 var longestCommonPrefix = function(strs) {
     let prefix = strs[0];
@@ -776,7 +768,7 @@ var multiply = function(num1, num2) {
 
 
 # 滑动窗口
-## 25. 无重复字符的最长子串
+## 28. 无重复字符的最长子串 (T1)
 ```js
 var lengthOfLongestSubstring = function(s) {
     const n = s.length;
@@ -799,7 +791,7 @@ var lengthOfLongestSubstring = function(s) {
 }
 ```
 
-## 26. 合并区间
+## 29. 合并区间
 给出一个区间的集合 intervals，其中每个区间 intervals[i] = [starti, endi]。
 请你合并所有重叠的区间，并返回一个不重叠的区间数组。
 输入：intervals = [[1,3],[2,6],[8,10],[15,18]]
@@ -827,7 +819,7 @@ var merge = function(intervals) {
 }
 ```
 
-## 27. 长度最小的子数组
+## 330. 长度最小的子数组
 给定一个含有 n 个正整数的数组和一个正整数 target 。
 找出该数组中满足其总和大于等于 target 的长度最小的 子数组 [nums(l), nums(l+1), ..., nums(r-1), nums(r)] ，并返回其长度。如果不存在符合条件的子数组，返回 0 。
 ```js
@@ -852,7 +844,7 @@ var minSubArrayLen = function(target, nums) {
 ```
 
 # 栈
-## 28. 有效的括号
+## 31. 有效的括号
 ```js
 var isValid = function(s) {
     const myMap = {
@@ -874,7 +866,7 @@ var isValid = function(s) {
 }
 ```
 
-## 29. LRU
+## 32. LRU
 ```js
 var LRUCache = function(capacity) {
     this.capacity = capacity
@@ -982,7 +974,7 @@ var decodeString = function(s) {
 
 
 # 链表
-## 25. 反转链表
+## 33. 反转链表
 ```js
 var reverseList = function(head) {
     let pre = null, p = head;
@@ -996,7 +988,7 @@ var reverseList = function(head) {
 }
 ```
 
-## 26. 环形链表
+## 34. 环形链表
 ```js
 var hasCycle = function(head) {
     let fast = head, slow = head;
@@ -1009,7 +1001,7 @@ var hasCycle = function(head) {
 }
 ```
 
-## 27. 删除链表倒数第N个节点
+## 35. 删除链表倒数第N个节点
 > dummy 节点用于统一链表操作，特别是在删除头节点时，可以避免单独处理边界情况，使代码更加简洁和安全。
 ```js
 var removeNthFromEnd = function(head, n) {
@@ -1027,7 +1019,7 @@ var removeNthFromEnd = function(head, n) {
 };
 ```
 
-## 28. k 个一组反转链表
+## 36. k 个一组反转链表
 ```js
 var reverseKGroup = function(head, k) {
     let node = head;
@@ -1057,7 +1049,7 @@ var reverseKGroup = function(head, k) {
 }
 ```
 
-## 29. 相交链表
+## 37. 相交链表
 ```js
 var getIntersectionNode = function(headA, headB) {
     if (headA == null || headB = null)  return null;
@@ -1070,7 +1062,7 @@ var getIntersectionNode = function(headA, headB) {
 }
 ```
 
-## 30. 两数相加
+## 38. 两数相加
 ```js
 var addTwoNumbers = function(l1, l2) {
     let dummy = new ListNode(0);
@@ -1098,7 +1090,7 @@ var addTwoNumbers = function(l1, l2) {
 };
 ```
 
-## 31. 重排链表
+## 39. 重排链表
 给定一个单链表 L0 → L1 → ... → Ln-1 → Ln，
 请将其重新排列为：
 L0 → Ln → L1 → Ln-1 → L2 → Ln-2 → ...
@@ -1150,7 +1142,7 @@ var reorderList = function(head) {
 
 ## DFS 遍历
 
-### 32. 中序 / 前序 / 后序通用模板
+### 40. 中序 / 前序 / 后序通用模板
 ```js
 const dfs = (root) => {
     if (!root) return;
@@ -1165,7 +1157,7 @@ const dfs = (root) => {
 };
 ```
 
-### 33. 二叉树的中序遍历
+### 41. 二叉树的中序遍历
 ```js
 var inorderTraversal = function(root) {
     const res = [];
@@ -1187,7 +1179,7 @@ var inorderTraversal = function(root) {
 - `path / sum / state` 作为递归参数向下传
 - 到叶子节点时做一次结算
 
-### 34. 路径总和
+### 42. 路径总和
 ```js
 var hasPathSum = function(root, targetSum) {
     if (!root) return false;
@@ -1199,7 +1191,7 @@ var hasPathSum = function(root, targetSum) {
 };
 ```
 
-### 35. 二叉树的所有路径
+### 43. 二叉树的所有路径
 ```js
 var binaryTreePaths = function(root) {
     const res = [];
@@ -1221,7 +1213,7 @@ var binaryTreePaths = function(root) {
 };
 ```
 
-### 36. 求根到叶子节点数字之和
+### 44. 求根到叶子节点数字之和
 ```js
 var sumNumbers = function(root) {
     let total = 0;
@@ -1251,7 +1243,7 @@ var sumNumbers = function(root) {
 - 先拿到左右子树的信息
 - 再在当前节点做汇总
 
-### 37. 二叉树的最大深度
+### 45. 二叉树的最大深度
 ```js
 var maxDepth = function(root) {
     if (!root) return 0;
@@ -1261,7 +1253,7 @@ var maxDepth = function(root) {
 };
 ```
 
-### 38. 二叉树的最大直径
+### 46. 二叉树的最大直径
 ```js
 var diameterOfBinaryTree = function(root) {
     let res = 0;
@@ -1279,7 +1271,7 @@ var diameterOfBinaryTree = function(root) {
 };
 ```
 
-### 39. 二叉树的最近公共祖先
+### 47. 二叉树的最近公共祖先
 ```js
 var lowestCommonAncestor = function(root, p, q) {
     if (!root || root === p || root === q) return root;
@@ -1294,7 +1286,7 @@ var lowestCommonAncestor = function(root, p, q) {
 
 ## 树结构变换
 
-### 40. 反转二叉树
+### 48. 反转二叉树
 ```js
 var flipTree = function(root) {
     if (!root) return null;
@@ -1305,7 +1297,7 @@ var flipTree = function(root) {
 };
 ```
 
-### 41. 对称二叉树
+### 49. 对称二叉树
 ```js
 var checkSymmetricTree = function(root) {
     if (!root) return true;
@@ -1321,7 +1313,7 @@ var checkSymmetricTree = function(root) {
 };
 ```
 
-### 42. 从前序与中序遍历序列构造二叉树
+### 50. 从前序与中序遍历序列构造二叉树
 ```js
 var buildTree = function(preorder, inorder) {
     if (!preorder.length || !inorder.length) return null;
@@ -1345,7 +1337,7 @@ var buildTree = function(preorder, inorder) {
 
 这组题本质上都能抽成同一个 BFS 框架，只是“每层怎么取结果”不一样。
 
-### 43. 基础层序遍历
+### 51. 基础层序遍历
 ```js
 var levelOrder = function(root) {
     if (!root) return [];
@@ -1371,7 +1363,7 @@ var levelOrder = function(root) {
 };
 ```
 
-### 44. 锯齿形层次遍历
+### 52. 锯齿形层次遍历
 ```js
 var zigzagLevelOrder = function(root) {
     if (!root) return [];
@@ -1400,7 +1392,7 @@ var zigzagLevelOrder = function(root) {
 };
 ```
 
-### 45. 二叉树的右视图
+### 53. 二叉树的右视图
 ```js
 var rightSideView = function(root) {
     if (!root) return [];
@@ -1423,7 +1415,7 @@ var rightSideView = function(root) {
 ```
 
 # 回溯
-## 46. 全排列
+## 54. 全排列
 ```js
 var permute = function(nums) {
     const n = nums.length;
@@ -1451,7 +1443,7 @@ var permute = function(nums) {
 };
 ```
 
-## 47. 子集
+## 55. 子集
 给你一个整数数组 nums ，数组中的元素 互不相同 。返回该数组所有可能的子集（幂集）。
 解集 不能 包含重复的子集。你可以按 任意顺序 返回解集。
 
@@ -1472,7 +1464,7 @@ var subsets = function(nums) {
 };
 ```
 
-## 48. 组合总和
+## 56. 组合总和
 给定一个候选人编号的集合 candidates 和一个目标数 target ，找出 candidates 中所有可以使数字和为 target 的组合。
 candidates 中的每个数字在每个组合中只能使用 一次 。
 注意：解集不能包含重复的组合。 
@@ -1513,7 +1505,7 @@ var combinationSum2 = function(candidates, target) {
 };
 ```
 
-## 49. 岛屿数量
+## 57. 岛屿数量
 给你一个由 '1'（陆地）和 '0'（水）组成的二维网格 grid，请你计算网格中岛屿的数量。
 岛屿由水平方向或竖直方向相邻的陆地连接形成。
 你可以假设网格的四周被水包围。
@@ -1560,7 +1552,7 @@ var numIslands = function(grid) {
 }
 ```
 
-## 50. 岛屿的最大面积
+## 58. 岛屿的最大面积
 ```js
 var maxAreaOfIsland = function(grid) {
     const m = grid.length;
@@ -1586,7 +1578,7 @@ var maxAreaOfIsland = function(grid) {
 }
 ```
 
-## 51. 括号生成
+## 59. 括号生成
 每一步可以选择放左括号或右括号，但需要满足两个约束：
 - 左括号数量不能超过 n
 - 右括号数量不能超过左括号
@@ -1614,7 +1606,7 @@ var generateParenthesis = function(n) {
 }
 ```
 
-## 52. 复原 IP 地址
+## 60. 复原 IP 地址
 给定一个只包含数字的字符串 s，通过在字符串中插入 . 将其分割成 4 个整数段，判断能否组成一个合法的 IP 地址。
 合法 IP 段要求
 - 每段长度 1~3
