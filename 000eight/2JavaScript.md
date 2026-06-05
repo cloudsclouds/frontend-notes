@@ -239,6 +239,113 @@ JavaScript 的继承方式经历了多个阶段：
 - 寄生组合继承：优化版，只调用一次父类构造函数，避免浪费，解决了前面的问题，被认为是 ES5 最优解。
 - ES6 class extends：就是寄生组合继承的语法糖，写法更简洁，支持 super 和静态方法。
 
+#### 原型链继承
+```js
+function Parent() {
+  this.name = 'Parent';
+  this.colors = ['red', 'blue'];
+}
+Parent.prototype.getName = function() {
+  return this.name;
+};
+
+function Child() {}
+Child.prototype = new Parent();
+Child.prototype.constructor = Child;
+
+const child1 = new Child();
+const child2 = new Child();
+child1.colors.push('green');
+console.log(child2.colors); // ['red', 'blue', 'green']
+```
+
+#### 构造函数继承
+```js
+function Parent() {
+  this.name = ['fedaily'];
+}
+
+Parent.prototype.getName = function () {
+  return this.name;
+};
+
+function Child() {
+  Parent.call(this);
+}
+```
+
+#### 组合继承
+```js
+function Parent() {
+  this.name = 'fedaily';
+  this.play = [1, 2, 3];
+}
+
+Parent.prototype.getName = function() {
+  return this.name;
+};
+
+function Child() {
+  Parent.call(this);
+  this.topic = 'fe';
+}
+
+Child.prototype = new Parent();
+Child.prototype.constructor = Child;
+```
+
+#### 寄生组合继承（ES5 最优方案）
+```js
+function Parent(name) {
+  this.name = name;
+  this.colors = ['red', 'blue'];
+}
+Parent.prototype.getName = function() {
+  return this.name;
+};
+
+function Child(name, age) {
+  Parent.call(this, name);
+  this.age = age;
+}
+
+function inheritPrototype(Child, Parent) {
+  Child.prototype = Object.create(Parent.prototype);
+  Child.prototype.constructor = Child;
+}
+
+inheritPrototype(Child, Parent);
+```
+
+#### ES6 class 继承
+```js
+class Parent {
+  constructor(name) {
+    this.name = name;
+    this.colors = ['red', 'blue'];
+  }
+
+  getName() {
+    return this.name;
+  }
+
+  static staticMethod() {
+    return 'static method';
+  }
+}
+
+class Child extends Parent {
+  constructor(name, age) {
+    super(name);
+    this.age = age;
+  }
+
+  getAge() {
+    return this.age;
+  }
+}
+```
+
 ## 7. 函数式编程————函数柯里化
 函数柯里化 = 把一个接收多个参数的函数，拆成多个接收一个参数的函数。
 
@@ -638,370 +745,3 @@ function 不会自动开启。
 4. 提升行为
 函数声明：foo()，unction foo(){} 可以；
 class：new Person()，在声明前访问：ReferenceError 存在暂时性死区。
-
-
-
-
-
-
-
-
-
-
-
-
-
-## 其他 notes
-## 1. 执行栈与任务队列
-- 执行栈（Call Stack）：用于存储同步任务的执行上下文，遵循LIFO（后进先出）原则，函数执行时会被推入栈顶。
-function a() { b(); }
-function b() { c(); }
-function c() { console.log('c'); }
-a();
-// 执行栈流程：a入栈 → b入栈 → c入栈 → 执行c → c出栈 → b出栈 → a出栈
-- 任务队列（Task Queue）：存储异步任务回调，分为宏任务队列和微任务队列，优先级不同
-
-## 2. 对作用域、作用域链的理解
-```js
-// 场景1：同一作用域内的覆盖
-var a = 10;
-if (true) {
-  var a = 20; // 因为var是函数作用域，这里的a会覆盖外层的a
-}
-console.log(a); // 输出20（而不是预期的10）
-
-// 场景2：循环中的覆盖（更隐蔽）
-for (var i = 0; i < 3; i++) {
-  setTimeout(() => {
-    console.log(i); // 预期输出0、1、2，实际输出3、3、3
-  }, 100);
-}
-// 原因：var声明的i是函数作用域（整个外部作用域共享一个i）
-// 循环结束后i已经变成3，定时器回调读取的是同一个i
-
-// 在这两个例子中，变量提升导致 var 声明的变量作用域过大（穿透了代码块），最终引发了非预期的覆盖。
-
-// 解决1
-let a = 10;
-if (true) {
-  let a = 20; // 块级作用域，与外层a完全独立
-}
-console.log(a); // 输出10（符合预期，没有被覆盖）
-
-// 解决2
-for (let i = 0; i < 3; i++) { // let声明的i是块级作用域
-  setTimeout(() => {
-    console.log(i); // 输出0、1、2（符合预期）
-  }, 100);
-}
-// 原因：每次循环都会创建一个独立的块级作用域，每个i都是“新变量”
-// 定时器回调读取的是各自块内的i，不会被后续循环覆盖
-// 立即执行函数（IIFE）
-for (var i = 0; i < 3; i++) {
-  (function(i) {  // 👈 关键：形成作用域
-    setTimeout(() => {
-      console.log(i);
-    }, 100);
-  })(i); // 👈 把当前 i 传进去
-}
-```
-```js
-var a = 2;
-function foo(){
-    console.log(a) // 2
-}
-function bar(){
-    var a = 3;
-    foo();
-}
-bar()
-```
-
-## 3. 闭包的经典应用场景
-1. 数据私有化：
-```js
-function createCounter() {
-  let count = 0; // 私有变量
-  return {
-    increment: () => ++count,
-    decrement: () => --count,
-    getCount: () => count
-  };
-}
-const counter = createCounter();
-console.log(counter.getCount()); // 0
-counter.increment();
-console.log(counter.getCount()); // 1
-```
-2. 函数工厂：
-根据不同参数生成具有特定行为的函数，避免重复代码。
-例如createAdder(5)生成的add5函数，会 "记住" 参数5，每次调用时都用这个值参与计算，本质是闭包保留了value变量。
-```js
-function createAdder(value) {
-  return function(num) {
-    return value + num;
-  };
-}
-const add5 = createAdder(5);
-console.log(add5(3)); // 8
-```
-
-## 4. this 优先级从高到低
-```js
-// 1. new 绑定（最高优先级）
-function Person(name) {
-  this.name = name;  // this 指向新创建的实例
-}
-const person = new Person('Tom');
-
-// 2. 显式绑定（call/apply/bind）
-function greet() {
-  console.log(this.name);
-}
-greet.call({ name: 'Tom' });  // this 指向传入的对象
-
-// 3. 隐式绑定（对象方法调用）
-const user = {
-  name: 'Tom',
-  greet() {
-    console.log(this.name);  // this 指向 user
-  }
-};
-user.greet();
-
-// 4. 默认绑定（直接调用）
-function sayHi() {
-  console.log(this);  // 严格模式：undefined；非严格模式：window/global
-}
-sayHi();
-
-// 5. 箭头函数（没有自己的 this，继承外层 this）
-const obj = {
-  name: 'Tom',
-  regularFunc: function() {
-    console.log(this.name);  // Tom
-  },
-  arrowFunc: () => {
-    console.log(this.name);  // undefined（继承全局 this）
-  }
-};
-```
-优先级验证
-```js
-// new 绑定 > 显式绑定
-function Foo() {
-  this.name = 'Foo';
-}
-
-const obj = { name: 'obj' };
-const foo = new Foo.call(obj);  // 报错，不能同时使用
-
-// 显式绑定 > 隐式绑定
-function greet() {
-  console.log(this.name);
-}
-
-const obj1 = { name: 'obj1', greet };
-const obj2 = { name: 'obj2' };
-
-obj1.greet.call(obj2);  // obj2（显式绑定胜）
-```
-常见陷阱
-```js
-// 1. 方法作为回调函数
-const user = {
-  name: 'Tom',
-  greet() {
-    console.log(this.name);
-  }
-};
-
-setTimeout(user.greet, 100);  // undefined（this 丢失）
-
-// 解决
-setTimeout(() => user.greet(), 100);  // Tom
-setTimeout(user.greet.bind(user), 100);  // Tom
-
-// 2. 嵌套函数
-const obj = {
-  name: 'Tom',
-  outer() {
-    console.log(this.name);  // Tom
-
-    function inner() {
-      console.log(this.name);  // undefined（默认绑定）
-    }
-    inner();
-
-    // 解决
-    const arrow = () => {
-      console.log(this.name);  // Tom（继承 outer 的 this）
-    };
-    arrow();
-  }
-};
-```
-
-## 5. 继承实现方式详解
-
-### 原型链继承：最基础但有明显缺陷
-原型继承的核⼼是 prototype 属性。当你访问⼀个对象的属性或⽅法时，如果当前对象上不存在， 解释器就会查找对象的原型链，直到找到该属性或⽅法或到达原型链的末端。
-
-- 实现：让子类的原型（Child.prototype）指向父类的一个实例（new Parent()），从而让子类实例通过原型链访问父类的属性和方法。
-- 代码：
-```js
-function Parent() {
-  this.name = 'Parent'; // 父类实例属性（会被子类原型共享）
-  this.colors = ['red', 'blue']; // 引用类型属性
-}
-Parent.prototype.getName = function() { // 父类共享方法（所有实例都能用）
-  return this.name;
-};
-
-// 子类：需要继承父类
-function Child() {}
-// 核心操作：子类的原型指向父类的实例
-Child.prototype = new Parent();
-// 修复constructor指向（否则Child.prototype.constructor会指向Parent）
-Child.prototype.constructor = Child;
-
-// 问题：引用类型属性会被所有实例共享
-const child1 = new Child();
-const child2 = new Child();
-child1.colors.push('green');
-console.log(child2.colors); // ['red', 'blue', 'green']
-```
-为什么能实现继承？
-当创建子类实例（比如const child1 = new Child()）时：
-- 访问child1.name：会先找自身属性，找不到就去Child.prototype（也就是父类实例）里找，所以能拿到'Parent'。
-- 调用child1.getName()：自身和Child.prototype都没有，就去Parent.prototype里找，所以能调用父类方法。
-缺点：
-父类构造函数中的引用类型（比如对象/数组），会被所有子类实例共享。其中一个子类实例进行修改，会导致所有其他子类实例的这个值都会改变。具体来说，因为Child.prototype指向的是同一个父类实例（new Parent()只执行一次）。child1和child2的colors属性，其实都是从这个 “唯一的父类实例” 上拿的 —— 它们共享同一个数组的引用。
-### 构造函数继承
-构造函数继承其实就是通过修改父类构造函数this实现的继承。我们在子类构造函数中执行父类构造函数，同时修改父类构造函数的this为子类的this。
-我们直接看如何实现：
-```js
-function Parent() {
-  this.name = ['fedaily']
-}
-
-Parent.prototype.getName = function () {
-    return this.name;
-}
-
-function Child() {
-  Parent.call(this)
-}
-
-var child = new Child()
-child.name.push('fe')
-
-var child2 = new Child() // child2.name === ['fedaily']
-
-console.log(child.getName());  // 会报错
-```
-相比第一种原型链继承方式，父类的引用属性不会被共享，优化了第一种继承方式的弊端；
-但是只能继承父类的实例属性和方法，不能继承原型属性或者方法
-### 组合继承
-同时结合原型链继承、构造函数继承就是组合继承了。
-```js
-function Parent() {
-  this.name = 'fedaily';
-  this.play = [1, 2, 3];
-}
-
-Parent.prototype.getName = function() {
-  return this.name
-}
-
-function Child() {
-  // 第二次调用 Parent()
-  Parent.call(this)
-  this.topic = 'fe'
-}
-
-// 第一次调用 Parent()
-Child.prototype = new Parent()
-// 需要重新设置子类的constructor，
-// Child.prototype = new Parent() 相当于子类的原型对象完全被覆盖了
-Child.prototype.constructor = Child
-
-var s1 = new Child();
-var s2 = new Child();
-s1.play.push(4);
-console.log(s1.play, s2.play);  // 不互相影响
-console.log(s1.getName()); // 正常输出'fedaily'
-console.log(s2.getName()); // 正常输出'fedaily'
-```
-缺点:父类构造函数被调用了两次。
-
-### 寄生组合继承（最优方案）
-- 实现：结合构造函数继承（解决引用类型共享问题）和 寄生式继承（优化原型链，只继承父类的方法，不重复创建父类实例（避免浪费））
-- 代码：
-```js
-function Parent(name) {
-  this.name = name; // 每个实例应独立拥有的属性
-  this.colors = ['red', 'blue']; // 引用类型（这次要让每个实例单独拥有）
-}
-// 父类的共享方法（放在原型上，所有实例共用）
-Parent.prototype.getName = function() {
-  return this.name;
-};
-
-// 子类：需要自己的属性（比如age）
-function Child(name, age) {
-  // 关键1：调用父类构造函数，并且强制让父类的this指向当前子类实例
-  Parent.call(this, name);
-  // 这样，每个Child实例都会执行一次Parent构造函数，创建自己的name和colors
-  this.age = age;
-}
-
-// 关键2：优化原型链（只继承父类的方法，不共享属性）
-function inheritPrototype(Child, Parent) {
-  // 这里改用 Object.create 就可以减少组合继承中多进行一次构造的过
-  // 子类原型指向父类原型的副本
-  Child.prototype = Object.create(Parent.prototype);
-  // 修复constructor指向（确保子类实例知道自己是Child创建的）
-  Child.prototype.constructor = Child;
-}
-// 执行继承：让Child继承Parent的方法
-inheritPrototype(Child, Parent);
-// 优点：避免原型链继承的引用类型共享问题，同时保持原型链完整
-```
-### ES6 class继承
-- 语法糖：本质是寄生组合继承的语法封装
-- 代码：
-```js
-// 父类（对应ES5的构造函数+prototype）
-class Parent {
-  constructor(name) {
-    this.name = name;
-    this.colors = ['red', 'blue'];
-  }
-
-  getName() {  // 对应Parent.prototype.getName（共享方法）
-    return this.name;
-  }
-
-  static staticMethod() { // 静态方法（挂载在Parent类上，而非prototype）
-    return 'static method';
-  }
-}
-
-// 子类继承（对应ES5的寄生组合继承）
-class Child extends Parent {
-  constructor(name, age) {
-    super(name); // 调用父类构造函数
-    this.age = age;
-  }
-
-  getAge() { // 子类共享方法（挂载在Child.prototype上）
-    return this.age;
-  }
-}
-// 继承关系验证
-const child = new Child('Alice', 20);
-console.log(child instanceof Child); // true
-console.log(child instanceof Parent); // true
-console.log(Child.staticMethod()); //    static method（继承静态方法）
-```
