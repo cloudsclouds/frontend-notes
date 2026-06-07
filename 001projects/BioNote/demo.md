@@ -467,6 +467,14 @@ public class CollabWebSocketHandler extends BinaryWebSocketHandler {
       // 通知其他人这个用户离开了。
       broadcastAwareness(room, session.getId(), removed.userName, false, null);
     }
+
+    // 房间人数变化后，最好补发一次在线人数，前端徽标/状态栏才能及时刷新。
+    broadcastOnlineCount(room);
+
+    // 如果房间已经没人了，就把内存态清理掉，避免 rooms 一直增长。
+    if (room.sessions.isEmpty()) {
+      rooms.remove(docId);
+    }
   }
 
   private void handleSync(WebSocketSession session, RoomState room, JsonNode payload) throws Exception {
@@ -505,6 +513,7 @@ public class CollabWebSocketHandler extends BinaryWebSocketHandler {
     String userName = payload.path("nickname").asText("Anonymous");
     boolean active = payload.path("active").asBoolean(true);
     JsonNode cursor = payload.path("cursor");
+    room.touch(session.getId());
     broadcastAwareness(room, session.getId(), userName, active, cursor.isMissingNode() ? null : cursor);
   }
 
@@ -529,6 +538,24 @@ public class CollabWebSocketHandler extends BinaryWebSocketHandler {
       room.latestSnapshot = latest;
       documentRepository.saveLatestSnapshot(docId, latest, room.version.incrementAndGet(), System.currentTimeMillis());
     });
+  }
+
+ /**
+  * 广播在线人数。
+  * @param room 房间状态。
+  */
+  private void broadcastOnlineCount(RoomState room) {
+    for (SessionState peer : room.sessions.values()) {
+      if (!peer.session.isOpen()) continue;
+      try {
+        sendJson(peer.session, Map.of(
+            "type", "onlineCount",
+            "payload", Map.of("count", room.onlineCount())
+        ));
+      } catch (Exception ignored) {
+        // demo 里忽略单个连接发送失败，真实项目可记录日志并清理异常连接
+      }
+    }
   }
 
   // 统一封装 JSON 输出
@@ -640,6 +667,7 @@ public class CollabWebSocketHandler extends BinaryWebSocketHandler {
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB：分片大小。
 const MAX_CONCURRENCY = 4; // 同时上传的分片数
+const UPLOAD_TASK_STORAGE_KEY = 'bionote-upload-task'; // 用于页面刷新后恢复上传任务。
 
 type UploadTaskStatus = 'idle' | 'hashing' | 'checking' | 'uploading' | 'paused' | 'done' | 'error';
 
@@ -737,6 +765,7 @@ async function uploadChunk(params: {
   chunkIndex: number;
   totalChunks: number;
   blob: Blob;
+  signal?: AbortSignal;
 }) {
   const formData = new FormData();
   formData.append('taskId', params.taskId);
@@ -749,6 +778,7 @@ async function uploadChunk(params: {
   const res = await fetch('/api/upload/chunk', {
     method: 'POST',
     body: formData,
+    signal: params.signal,
   });
 
   if (!res.ok) {
@@ -790,9 +820,48 @@ class LargeFileUploader {
 
   constructor(private readonly onProgress?: (task: UploadTask) => void) {}
 
+  /**
+   * 把任务状态存到本地，页面刷新后可以继续展示“上传到哪一步了”。
+   * 注意：这里只保存任务元信息，不保存真正的文件二进制内容；
+   * 浏览器刷新后仍然需要用户重新拿到 File 对象，才能继续补传缺失分片。
+   */
+  private persistTask() {
+    if (!this.task) return;
+    localStorage.setItem(UPLOAD_TASK_STORAGE_KEY, JSON.stringify(this.task));
+  }
+
+  /**
+   * 上传完成后清理本地缓存，避免下次打开页面时误恢复旧任务。
+   */
+  private clearPersistedTask() {
+    localStorage.removeItem(UPLOAD_TASK_STORAGE_KEY);
+  }
+
   private emit() {
+    if (this.task) {
+      if (this.task.status === 'done') {
+        this.clearPersistedTask();
+      } else {
+        this.persistTask();
+      }
+    }
     if (this.task && this.onProgress) {
       this.onProgress({ ...this.task, uploadedChunks: [...this.task.uploadedChunks] });
+    }
+  }
+
+  /**
+   * 页面初始化时可调用这个静态方法，恢复“上一次上传到哪儿”的任务信息。
+   * 这一步只恢复 UI，不会自动继续上传。
+   */
+  static restorePersistedTask(): UploadTask | null {
+    const raw = localStorage.getItem(UPLOAD_TASK_STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as UploadTask;
+    } catch {
+      localStorage.removeItem(UPLOAD_TASK_STORAGE_KEY);
+      return null;
     }
   }
 
@@ -808,86 +877,109 @@ class LargeFileUploader {
    */
   async start(file: File) {
     const { chunks, totalChunks } = sliceFile(file);
+    this.abortController = new AbortController();
 
-    this.task = {
-      taskId: '',
-      fileHash: '',
-      fileName: file.name,
-      fileSize: file.size,
-      totalChunks,
-      uploadedChunks: [],
-      status: 'hashing',
-    };
+    this.task = this.task?.taskId
+      ? {
+          ...this.task,
+          fileName: file.name,
+          fileSize: file.size,
+          totalChunks,
+          status: 'hashing',
+        }
+      : {
+          taskId: '',
+          fileHash: '',
+          fileName: file.name,
+          fileSize: file.size,
+          totalChunks,
+          uploadedChunks: [],
+          status: 'hashing',
+        };
     this.emit();
 
-    const fileHash = await createFileHash(file);
-    this.task.fileHash = fileHash;
-    this.task.status = 'checking';
-    this.emit();
-
-    const prepared = await prepareUpload(file);
-
-    this.task.taskId = prepared.taskId;
-
-    // 秒传分支：后端发现文件已完整存在，直接返回成功即可。
-    if (prepared.shouldSkip) {
-      this.task.status = 'done';
-      this.task.uploadedChunks = chunks.map((chunk) => chunk.index);
+    try {
+      const fileHash = await createFileHash(file);
+      this.task.fileHash = fileHash;
+      this.task.status = 'checking';
       this.emit();
-      return;
-    }
 
-    // 断点续传分支：服务端返回已经上传的分片，前端只补传缺失部分。
-    const uploadedSet = new Set(prepared.alreadyUploadedChunks);
-    this.task.uploadedChunks = [...uploadedSet].sort((a, b) => a - b);
-    this.task.status = 'uploading';
-    this.emit();
+      const prepared = await prepareUpload(file);
 
-    const queue = chunks.filter((chunk) => !uploadedSet.has(chunk.index));
-    const running: Promise<void>[] = [];
+      this.task.taskId = prepared.taskId;
 
-    const next = async () => {
-      const chunk = queue.shift();
-      if (!chunk || this.task?.status === 'paused') return;
-
-      const promise = uploadChunk({
-        taskId: prepared.taskId,
-        fileHash,
-        fileName: file.name,
-        chunkIndex: chunk.index,
-        totalChunks,
-        blob: chunk.blob,
-      }).then(() => {
-        this.task!.uploadedChunks.push(chunk.index);
-        this.task!.uploadedChunks.sort((a, b) => a - b);
+      // 秒传分支：后端发现文件已完整存在，直接返回成功即可。
+      if (prepared.shouldSkip) {
+        this.task.status = 'done';
+        this.task.uploadedChunks = chunks.map((chunk) => chunk.index);
         this.emit();
-      });
-
-      running.push(promise);
-      promise.finally(() => {
-        const index = running.indexOf(promise);
-        if (index >= 0) running.splice(index, 1);
-      });
-
-      // 并发池：保持 MAX_CONCURRENCY 个任务同时进行
-      if (running.length < MAX_CONCURRENCY) {
-        return next();
+        return;
       }
 
-      await Promise.race(running);
-      return next();
-    };
+      // 断点续传分支：服务端返回已经上传的分片，前端只补传缺失部分。
+      const uploadedSet = new Set(prepared.alreadyUploadedChunks);
+      this.task.uploadedChunks = [...uploadedSet].sort((a, b) => a - b);
+      this.task.status = 'uploading';
+      this.emit();
 
-    // 启动并发上传
-    const starters = Array.from({ length: Math.min(MAX_CONCURRENCY, queue.length) }, () => next());
-    await Promise.all(starters);
-    await Promise.all(running);
+      const queue = chunks.filter((chunk) => !uploadedSet.has(chunk.index));
+      const running: Promise<void>[] = [];
 
-    // 等所有分片上传完成后，通知后端进行最终收尾
-    await completeUpload(prepared.taskId);
+      const next = async () => {
+        const chunk = queue.shift();
+        if (!chunk || this.task?.status === 'paused') return;
 
-    this.task.status = 'done';
-    this.emit();
+        const promise = uploadChunk({
+          taskId: prepared.taskId,
+          fileHash,
+          fileName: file.name,
+          chunkIndex: chunk.index,
+          totalChunks,
+          blob: chunk.blob,
+          signal: this.abortController?.signal,
+        }).then(() => {
+          // 某个分片上传成功后，立即更新本地任务状态，刷新进度条。
+          this.task!.uploadedChunks.push(chunk.index);
+          this.task!.uploadedChunks.sort((a, b) => a - b);
+          this.emit();
+        });
+
+        running.push(promise);
+        promise.finally(() => {
+          const index = running.indexOf(promise);
+          if (index >= 0) running.splice(index, 1);
+        });
+
+        // 并发池：保持 MAX_CONCURRENCY 个任务同时进行
+        if (running.length < MAX_CONCURRENCY) {
+          return next();
+        }
+
+        await Promise.race(running);
+        return next();
+      };
+
+      // 启动并发上传
+      const starters = Array.from({ length: Math.min(MAX_CONCURRENCY, queue.length) }, () => next());
+      await Promise.all(starters);
+      await Promise.all(running);
+
+      // 等所有分片上传完成后，通知后端进行最终收尾
+      await completeUpload(prepared.taskId);
+
+      this.task.status = 'done';
+      this.emit();
+    } catch (error) {
+      const isAbort = error instanceof DOMException && error.name === 'AbortError';
+      // 如果是用户主动暂停，就保留 paused 状态，不标记成 error。
+      if (!isAbort || this.task?.status !== 'paused') {
+        this.task = this.task ? { ...this.task, status: 'error' } : null;
+        this.emit();
+      }
+      throw error;
+    } finally {
+      this.abortController = null;
+    }
   }
 
   pause() {
@@ -906,6 +998,7 @@ class LargeFileUploader {
 
 // 使用示例：
 // const uploader = new LargeFileUploader((task) => setState(task));
+// const restored = LargeFileUploader.restorePersistedTask(); // 页面刷新后先恢复 UI
 // await uploader.start(file);
 ```
 
@@ -1331,7 +1424,25 @@ export async function streamChat(
         .map((line) => line.replace(/^data:\s?/, ''))
         .join('');
 
-      if (dataLine) onChunk(dataLine);
+      if (!dataLine) continue;
+
+      // 很多后端不会直接推纯文本，而是推 JSON 包装：
+      // data: {"type":"token","content":"你好"}
+      // 所以这里先尝试按 JSON 解析，失败时再回退成普通文本。
+      try {
+        const payload = JSON.parse(dataLine);
+        if (payload?.type === 'token' && typeof payload.content === 'string') {
+          onChunk(payload.content);
+          continue;
+        }
+        if (payload?.type === 'done') {
+          return;
+        }
+      } catch {
+        // 不是 JSON 时，直接按纯文本 token 处理。
+      }
+
+      onChunk(dataLine);
     }
   }
 }
@@ -1348,6 +1459,8 @@ export function useStreamChat() {
   const streamingIdRef = useRef('');
 
   const appendAssistantChunk = (chunk: string) => {
+    // 每次只给“当前这条 assistant 消息”尾部追加内容，
+    // 这样用户就能看到模型像打字一样持续输出。
     setMessages((prev) =>
       prev.map((msg) =>
         msg.id === streamingIdRef.current
@@ -1358,6 +1471,7 @@ export function useStreamChat() {
   };
 
   const send = async (prompt: string) => {
+    // 同一时间只保留一个流式请求；如果用户连续提问，先取消上一次。
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -1376,6 +1490,8 @@ export function useStreamChat() {
       status: 'streaming',
     };
 
+    // 用 ref 记住“当前正在流式输出的是哪条消息”，
+    // 后续每个 token 到达时都能精确追加到这条 assistant 消息上。
     streamingIdRef.current = assistantMsg.id;
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setLoading(true);
@@ -2692,6 +2808,62 @@ public ApiResponse<List<KnowledgeChunkSearchResponse>> searchChunksAdvanced(Long
 }
 ```
 
+#### RAG 最终给模型的上下文是怎么拼的
+```java
+/**
+ * 检索结束后，不能把所有 chunk 一股脑塞进 prompt，
+ * 否则上下文很快爆掉，噪声还会把真正有用的证据淹没。
+ * 所以这里会做两件事：
+ * 1. 只保留前 N 个高相关片段
+ * 2. 给每个片段加引用占位符，方便模型回答后再做来源回填
+ */
+private String buildRagContext(String query, List<KnowledgeChunkSearchResponse> chunks) {
+  if (!StringUtils.hasText(query) || chunks == null || chunks.isEmpty()) {
+    return "";
+  }
+
+  StringBuilder builder = new StringBuilder();
+  builder.append("用户问题：").append(query).append("\n\n");
+  builder.append("可用知识片段：\n");
+
+  int index = 1;
+  for (KnowledgeChunkSearchResponse chunk : chunks) {
+    if (chunk == null || !StringUtils.hasText(chunk.getChunkText())) {
+      continue;
+    }
+    builder.append("[").append(index).append("] ");
+    builder.append(chunk.getChunkTitle() == null ? "未命名知识片段" : chunk.getChunkTitle()).append('\n');
+    builder.append(chunk.getChunkSummary() == null ? "" : "摘要：" + chunk.getChunkSummary() + "\n");
+    builder.append("正文：").append(chunk.getChunkText()).append('\n');
+    builder.append("引用占位符：{{cite_").append(chunk.getChunkId()).append("}}\n\n");
+    index++;
+  }
+
+  builder.append("回答要求：优先基于以上知识作答；如果使用某条知识，请保留对应引用占位符。\n");
+  return builder.toString();
+}
+```
+
+#### RAG 问答主链路
+```java
+/**
+ * 一个最小但完整的 RAG 问答链路：
+ * 1. 先检索证据片段
+ * 2. 再把证据拼进 prompt
+ * 3. 调模型生成初稿
+ * 4. 最后回填来源，给前端一个“可展示、可追溯”的答案
+ */
+public String answerWithRag(Long userId, String query, Long articleId) {
+  List<KnowledgeChunkSearchResponse> chunks = searchChunksAdvanced(userId, query, articleId, 6, false)
+      .getData();
+  String ragContext = buildRagContext(query, chunks);
+  String prompt = "你是科研问答助手。\n" + ragContext + "\n请基于证据回答。";
+
+  String answer = llmClient.chat(prompt);
+  return sourceBackfillService.backfill(answer, chunks);
+}
+```
+
 #### 单篇文章内的混合召回
 ```java
 private List<KnowledgeChunkSearchResponse> searchByArticle(Long articleId, String query, int limit) {
@@ -3105,6 +3277,7 @@ public class AiWritingOrchestratorService {
   private final CriticAgent criticAgent;
   private final MergerAgent mergerAgent;
   private final ResponseAssembler responseAssembler;
+  private final java.util.concurrent.Executor agentExecutor = java.util.concurrent.Executors.newFixedThreadPool(4);
 
   public AiWritingResult handle(AiWritingRequest request) {
     // 1. 空请求直接返回空结果，避免后面所有 Agent 都做无意义工作。
@@ -3125,7 +3298,10 @@ public class AiWritingOrchestratorService {
   private AiWritingResult handleFastPath(AiWritingRequest request) {
     // Fast 通道只需要一个 Worker，适合翻译、轻量润色、短文本摘要等低复杂度场景。
     String content = workerAgent.execute(request);
-    return responseAssembler.assemble(request, content, "FAST", List.of(), new SharedWorkspace());
+    SharedWorkspace workspace = new SharedWorkspace(java.util.UUID.randomUUID().toString());
+    workspace.put("request.content", request.getContent(), "ingest");
+    workspace.put("fast.output", content, "worker");
+    return responseAssembler.assemble(request, content, "FAST", List.of(), workspace);
   }
 
   private AiWritingResult handleSwarmPath(AiWritingRequest request) {
@@ -3137,11 +3313,8 @@ public class AiWritingOrchestratorService {
     SharedWorkspace workspace = new SharedWorkspace(plan.getRequestId());
     workspace.put("request.content", request.getContent(), "ingest");
 
-    // 按 DAG 顺序执行子任务。真正的实现里可以把“互不依赖”的节点并行化。
-    for (TaskNode node : plan.getNodes()) {
-      String partial = workerAgent.execute(node, workspace);
-      workspace.put(node.getWorkspaceKey(), partial, node.getAgentName());
-    }
+    // 按 DAG 执行子任务：有依赖的先等上游完成；没有依赖的节点可以并行。
+    executePlan(plan, workspace);
 
     // Merger 负责把分散的中间结果拼成一个可交付的初稿。
     String merged = mergerAgent.merge(workspace);
@@ -3194,6 +3367,59 @@ public class AiWritingOrchestratorService {
 
     // 其它任务默认只做一轮反思，控制成本。
     return plan.requiresStrictValidation() ? 2 : 1;
+  }
+
+  /**
+   * 这里展示一个“够讲清楚”的 DAG 执行器：
+   * - readyQueue 里放已经满足依赖的节点
+   * - 某个节点执行完成后，再尝试释放它的下游节点
+   * - 真正生产环境可以换成更成熟的任务调度器
+   */
+  private void executePlan(TaskPlan plan, SharedWorkspace workspace) {
+    Map<String, TaskNode> nodeMap = plan.getNodes().stream()
+        .filter(node -> node.getTaskId() != null)
+        .collect(Collectors.toMap(TaskNode::getTaskId, node -> node, (a, b) -> a, LinkedHashMap::new));
+
+    Map<String, Integer> indegree = new HashMap<>();
+    Map<String, List<String>> nextMap = new HashMap<>();
+    for (TaskNode node : plan.getNodes()) {
+      indegree.put(node.getTaskId(), node.getDependsOn().size());
+      for (String dependency : node.getDependsOn()) {
+        nextMap.computeIfAbsent(dependency, key -> new ArrayList<>()).add(node.getTaskId());
+      }
+    }
+
+    Queue<TaskNode> readyQueue = new ArrayDeque<>();
+    for (TaskNode node : plan.getNodes()) {
+      if (indegree.getOrDefault(node.getTaskId(), 0) == 0) {
+        readyQueue.offer(node);
+      }
+    }
+
+    while (!readyQueue.isEmpty()) {
+      List<TaskNode> batch = new ArrayList<>();
+      while (!readyQueue.isEmpty()) {
+        batch.add(readyQueue.poll());
+      }
+
+      List<CompletableFuture<Void>> futures = batch.stream()
+          .map(node -> CompletableFuture.runAsync(() -> {
+            String partial = workerAgent.execute(node, workspace);
+            workspace.put(node.getWorkspaceKey(), partial, node.getAgentName());
+          }, agentExecutor))
+          .toList();
+
+      CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+      for (TaskNode finished : batch) {
+        for (String nextTaskId : nextMap.getOrDefault(finished.getTaskId(), List.of())) {
+          int remain = indegree.computeIfPresent(nextTaskId, (key, value) -> value - 1);
+          if (remain == 0 && nodeMap.get(nextTaskId) != null) {
+            readyQueue.offer(nodeMap.get(nextTaskId));
+          }
+        }
+      }
+    }
   }
 }
 ```
@@ -3251,6 +3477,36 @@ public interface ResponseAssembler {
       List<DocumentPatch> patchHints,
       SharedWorkspace workspace
   );
+}
+
+/**
+ * 一个最小可理解的组装器实现：
+ * 1. 把最终文本返回给前端展示
+ * 2. 根据任务类型生成 patch
+ * 3. 把共享工作区快照带回去，方便审计、调试和回放
+ */
+@Service
+public class DefaultResponseAssembler implements ResponseAssembler {
+  @Override
+  public AiWritingResult assemble(
+      AiWritingRequest request,
+      String content,
+      String mode,
+      List<DocumentPatch> patchHints,
+      SharedWorkspace workspace
+  ) {
+    List<DocumentPatch> patches = patchHints == null || patchHints.isEmpty()
+        ? inferPatches(request, content)
+        : patchHints;
+    return AiWritingResult.success(content, mode, patches, workspace.snapshot());
+  }
+
+  private List<DocumentPatch> inferPatches(AiWritingRequest request, String content) {
+    if (request.getTaskType() == AiWritingTaskType.MERMAID) {
+      return List.of(DocumentPatch.block(PatchType.MERMAID, content));
+    }
+    return List.of(DocumentPatch.block(PatchType.REPLACE, content));
+  }
 }
 
 /**
@@ -3398,23 +3654,29 @@ public class AiWritingResult {
   private final String content;
   private final String mode;
   private final List<DocumentPatch> patches;
+  private final Map<String, WorkspaceCell> workspaceSnapshot;
 
-  private AiWritingResult(String content, String mode, List<DocumentPatch> patches) {
+  private AiWritingResult(String content, String mode, List<DocumentPatch> patches, Map<String, WorkspaceCell> workspaceSnapshot) {
     this.content = content;
     this.mode = mode;
     this.patches = patches == null ? List.of() : patches;
+    this.workspaceSnapshot = workspaceSnapshot == null ? Map.of() : workspaceSnapshot;
   }
 
   public static AiWritingResult empty() {
-    return new AiWritingResult("", "EMPTY", List.of());
+    return new AiWritingResult("", "EMPTY", List.of(), Map.of());
   }
 
   public static AiWritingResult success(String content, String mode) {
-    return new AiWritingResult(content, mode, List.of());
+    return new AiWritingResult(content, mode, List.of(), Map.of());
   }
 
   public static AiWritingResult success(String content, String mode, List<DocumentPatch> patches) {
-    return new AiWritingResult(content, mode, patches);
+    return new AiWritingResult(content, mode, patches, Map.of());
+  }
+
+  public static AiWritingResult success(String content, String mode, List<DocumentPatch> patches, Map<String, WorkspaceCell> workspaceSnapshot) {
+    return new AiWritingResult(content, mode, patches, workspaceSnapshot);
   }
 
   public String getContent() {
@@ -3427,6 +3689,10 @@ public class AiWritingResult {
 
   public List<DocumentPatch> getPatches() {
     return patches;
+  }
+
+  public Map<String, WorkspaceCell> getWorkspaceSnapshot() {
+    return workspaceSnapshot;
   }
 }
 
@@ -3459,6 +3725,16 @@ public class DocumentPatch {
 
   public Map<String, Object> getMeta() {
     return meta == null ? Map.of() : meta;
+  }
+
+  public static DocumentPatch block(PatchType type, String content) {
+    DocumentPatch patch = new DocumentPatch();
+    patch.type = type;
+    patch.startOffset = 0;
+    patch.endOffset = 0;
+    patch.content = content;
+    patch.meta = Map.of("target", "selection");
+    return patch;
   }
 }
 
@@ -3504,6 +3780,44 @@ public class AiWritingRequest {
 
   public int getMaxReflectionRoundsOrDefault(int fallback) {
     return maxReflectionRounds == null ? fallback : Math.max(1, maxReflectionRounds);
+  }
+}
+```
+
+### 前端如何消费 Agent 返回的 patch
+```ts
+/**
+ * 后端返回的不是“只能展示”的纯文本，而是“可以直接执行”的 patch 列表。
+ * 前端按 patch type 分发，就能把 AI 结果稳稳地回填到编辑器里。
+ */
+function applyAiPatches(editor: any, patches: Array<{
+  type: 'INSERT' | 'REPLACE' | 'APPEND' | 'MERMAID';
+  startOffset: number;
+  endOffset: number;
+  content: string;
+}>) {
+  for (const patch of patches) {
+    if (patch.type === 'MERMAID') {
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'codeBlock',
+          attrs: { language: 'mermaid' },
+          content: [{ type: 'text', text: patch.content }],
+        })
+        .run();
+      continue;
+    }
+
+    if (patch.type === 'APPEND') {
+      editor.chain().focus().insertContent(patch.content).run();
+      continue;
+    }
+
+    // REPLACE / INSERT 这里都可以落到同一个事务里处理；
+    // 真正生产里会把 offset 转成 ProseMirror position，再做精确替换。
+    editor.chain().focus().insertContent(patch.content).run();
   }
 }
 ```
