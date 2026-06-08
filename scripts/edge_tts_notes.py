@@ -27,7 +27,7 @@ from pathlib import Path
 import edge_tts
 
 
-DEFAULT_VOICE = "zh-CN-XiaoxiaoNeural"
+DEFAULT_VOICE = "zh-CN-YunxiNeural"
 DEFAULT_RATE = "+0%"
 MAX_SEGMENT_CHARS = 2800
 DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/001projects/BioNote/1BioNote.md")
