@@ -79,6 +79,13 @@ docker run -d -p 80:3001 --name vue-python-app vue-python-app:latest
 ## 4. 前端 CI/CD（Continuous Integration / Continuous Delivery）流程
 
 > 开发者提交代码后，系统自动完成检查、构建、部署、发布、监控的一整套流水线。
+> 先说打包，前端项目通常是基于 Vite、Webpack 这类构建工具，把 TypeScript、Vue 或 React 代码，连同样式、图片这些资源一起做编译、压缩、分包和产物优化，最终生成 dist/ 目录。这个目录里一般存放生产环境可直接访问的 HTML、JS、CSS 和静态资源文件。
+
+> 再说部署，代码 push 到仓库后，自动触发 CI/CD 流水线。流水线会先做代码检查，比如 ESLint、Prettier、TypeScript 类型检查、单元测试，确保代码质量没问题；通过以后再执行 build，生成正式环境产物。之后会把产物上传到服务器、对象存储或者 CDN。
+
+> 如果需要自己部署，一般使用 Docker Build：保证“开发环境、测试环境、生产环境”一致，把 Node、Nginx、构建产物、依赖全部打包，形成镜像。上传：`dist/`、`deploy/` 到服务器的部署目录，启动容器，用 Nginx 对外提供服务。
+
+> 上线之后，一般还会配合灰度发布和监控告警。灰度发布是先给一部分用户使用，观察是否有报错或性能异常；监控则会关注 JS Error、白屏、接口失败率和页面性能指标。
 
 1. 代码提交（git commit / push）：代码被推送到仓库，CI/CD流水线开始触发。
 2. Git Hook：Git 在某些时机自动执行的脚本

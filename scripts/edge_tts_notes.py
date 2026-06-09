@@ -30,8 +30,8 @@ import edge_tts
 DEFAULT_VOICE = "zh-CN-YunxiNeural"
 DEFAULT_RATE = "+0%"
 MAX_SEGMENT_CHARS = 2800
-DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/001projects/BioNote/1BioNote.md")
-DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/output.mp3")
+DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/8工程化.md")
+DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/8工程化.mp3")
 
 
 def parse_args() -> argparse.Namespace:
@@ -104,6 +104,8 @@ def clean_markdown(text: str) -> str:
     text = re.sub(r"```[\s\S]*?```", "\n", text)
     # 行内代码去掉反引号，保留内容本身。
     text = re.sub(r"`([^`]+)`", r"\1", text)
+    # 去掉强调语法里的星号，避免 TTS 把 * 念出来。
+    text = text.replace("*", "")
     # 标题和列表符号做轻量清洗，保留正文。
     text = re.sub(r"^\s{0,3}#{1,6}\s*", "", text, flags=re.MULTILINE)
     text = re.sub(r"^\s*[-*+]\s+", "", text, flags=re.MULTILINE)
@@ -296,8 +298,8 @@ def main() -> None:
     )
     print(f"已生成 mp3: {args.output}")
 
-    if args.play:
-        play_audio(output_path)
+    # if args.play:
+    #     play_audio(output_path)
 
 
 if __name__ == "__main__":

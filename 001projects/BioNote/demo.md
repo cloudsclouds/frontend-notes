@@ -3260,8 +3260,8 @@ public class SourceBackfillService {
 
 ## 6. 文档内 AI 辅助创作（多智能体编排 + Reflection Loop）
 这部分的核心不是“让模型一次性写完”，而是把复杂任务拆成一条清晰的链路：
-先做复杂度判断，再决定走 Fast 还是 Swarm；
-Swarm 里由 Planner 拆任务、Worker 并行执行、Critic 做校验、Merger 做聚合，最后用 Reflection Loop 把容易出错的地方再修一轮。
+先做路由判断，再决定走 Fast 还是 Swarm；
+Swarm 里由规划智能体拆任务、执行智能体并行执行、评审智能体做校验、汇总智能体做聚合，最后用 Reflection Loop 把容易出错的地方再修一轮。
 
 前端拿到的也不只是纯文本，而是一份结构化结果，里面会带上替换位置、插入内容、Mermaid 块等信息，方便直接回填到编辑器里。
 
@@ -3271,7 +3271,7 @@ Swarm 里由 Planner 拆任务、Worker 并行执行、Critic 做校验、Merger
 @RequiredArgsConstructor
 public class AiWritingOrchestratorService {
 
-  private final ComplexityScorer complexityScorer;
+  private final EditorRouteAgent routeAgent;
   private final PlannerAgent plannerAgent;
   private final WorkerAgent workerAgent;
   private final CriticAgent criticAgent;
@@ -3285,18 +3285,19 @@ public class AiWritingOrchestratorService {
       return AiWritingResult.empty();
     }
 
-    // 2. 先做复杂度打分，低复杂度任务直接走 Fast 通道，减少编排开销和模型调用成本。
-    int complexity = complexityScorer.score(request);
-    if (complexity <= 3) {
+    // 2. 路由智能体先判断这次任务更适合走 Fast 还是 Swarm。
+    //    这里通常会综合看：输入长度、任务类型、是否需要多步骤规划、是否涉及 Mermaid 等结构化输出。
+    RouteDecision routeDecision = routeAgent.route(request);
+    if (routeDecision.mode() == ExecutionMode.FAST) {
       return handleFastPath(request);
     }
 
     // 3. 复杂任务进入 Swarm：先规划，再并行执行，再统一聚合。
-    return handleSwarmPath(request);
+    return handleSwarmPath(request, routeDecision);
   }
 
   private AiWritingResult handleFastPath(AiWritingRequest request) {
-    // Fast 通道只需要一个 Worker，适合翻译、轻量润色、短文本摘要等低复杂度场景。
+    // Fast 通道只需要一个执行智能体，适合翻译、轻量润色、短文本摘要等低复杂度场景。
     String content = workerAgent.execute(request);
     SharedWorkspace workspace = new SharedWorkspace(java.util.UUID.randomUUID().toString());
     workspace.put("request.content", request.getContent(), "ingest");
@@ -3304,22 +3305,24 @@ public class AiWritingOrchestratorService {
     return responseAssembler.assemble(request, content, "FAST", List.of(), workspace);
   }
 
-  private AiWritingResult handleSwarmPath(AiWritingRequest request) {
-    // Planner 先把任务拆成 DAG，节点之间的依赖关系会决定执行顺序。
+  private AiWritingResult handleSwarmPath(AiWritingRequest request, RouteDecision routeDecision) {
+    // 规划智能体先把复杂任务拆成 DAG，节点之间的依赖关系会决定执行顺序。
     TaskPlan plan = plannerAgent.plan(request);
 
     // SharedWorkspace 就是黑板模式里的“共享工作区”：
-    // 每个 Agent 都可以写入中间结果，但不直接互相通信，避免链路耦合。
+    // 每个角色都可以把中间结果写进来，后续节点按需读取，减少点对点耦合。
     SharedWorkspace workspace = new SharedWorkspace(plan.getRequestId());
     workspace.put("request.content", request.getContent(), "ingest");
+    workspace.put("route.mode", routeDecision.mode().name(), "router");
+    workspace.put("route.reason", routeDecision.reason(), "router");
 
     // 按 DAG 执行子任务：有依赖的先等上游完成；没有依赖的节点可以并行。
     executePlan(plan, workspace);
 
-    // Merger 负责把分散的中间结果拼成一个可交付的初稿。
+    // 汇总智能体负责把分散的中间结果拼成一个可交付的初稿。
     String merged = mergerAgent.merge(workspace);
 
-    // Critic + Reflection Loop：先检查，再修正，直到通过或者达到阈值。
+    // 评审智能体 + Reflection Loop：先检查，再修正，直到通过或者达到阈值。
     String reflected = reflectUntilPass(request, merged, workspace, plan);
 
     // 最后把文本和结构化 patch 一起返回，前端才能知道“改哪儿、怎么改”。
@@ -3346,7 +3349,7 @@ public class AiWritingOrchestratorService {
       }
       previousSignature = currentSignature;
 
-      // 3. Worker 根据 Critic 的问题清单做局部修正，而不是重写整篇内容。
+      // 3. 执行智能体根据评审问题做局部修正，而不是整篇重写。
       current = workerAgent.revise(request, current, criticResult.getIssues(), workspace);
     }
 
@@ -3376,44 +3379,70 @@ public class AiWritingOrchestratorService {
    * - 真正生产环境可以换成更成熟的任务调度器
    */
   private void executePlan(TaskPlan plan, SharedWorkspace workspace) {
+    // 先把所有任务节点按 taskId 建一个索引表，后面释放下游任务时可以 O(1) 找到对应节点。
     Map<String, TaskNode> nodeMap = plan.getNodes().stream()
+        // taskId 为空的节点无法参与依赖计算，先过滤掉。
         .filter(node -> node.getTaskId() != null)
+        // 把 taskId 作为 key，TaskNode 作为 value 收进一个有序 Map，便于后续定位节点。
         .collect(Collectors.toMap(TaskNode::getTaskId, node -> node, (a, b) -> a, LinkedHashMap::new));
 
+    // indegree 记录“每个节点还剩多少个前置依赖没有完成”。
     Map<String, Integer> indegree = new HashMap<>();
+    // nextMap 记录“某个节点完成后，会影响哪些下游节点”。
     Map<String, List<String>> nextMap = new HashMap<>();
+
+    // 第一轮遍历：把每个节点的入度和下游关系都算出来。
     for (TaskNode node : plan.getNodes()) {
+      // 入度就是依赖列表的大小，比如 dependsOn 有两个任务，说明这个节点还有两个前置条件。
       indegree.put(node.getTaskId(), node.getDependsOn().size());
+
+      // 把“依赖 -> 当前节点”的关系记到 nextMap 里，方便后面某个依赖完成时去释放下游节点。
       for (String dependency : node.getDependsOn()) {
         nextMap.computeIfAbsent(dependency, key -> new ArrayList<>()).add(node.getTaskId());
       }
     }
 
+    // readyQueue 里放“当前已经满足执行条件”的节点，也就是入度为 0 的节点。
     Queue<TaskNode> readyQueue = new ArrayDeque<>();
+
+    // 第二轮遍历：把所有没有前置依赖的起始节点先放进 readyQueue。
     for (TaskNode node : plan.getNodes()) {
       if (indegree.getOrDefault(node.getTaskId(), 0) == 0) {
         readyQueue.offer(node);
       }
     }
 
+    // 只要 readyQueue 里还有可执行任务，就继续一轮轮往下跑。
     while (!readyQueue.isEmpty()) {
+      // batch 表示“这一轮可以并行执行的一批节点”。
       List<TaskNode> batch = new ArrayList<>();
+
+      // 把当前 readyQueue 里所有已就绪节点一次性取出来，组成当前批次。
       while (!readyQueue.isEmpty()) {
         batch.add(readyQueue.poll());
       }
 
+      // 对当前这一批节点并行执行。
       List<CompletableFuture<Void>> futures = batch.stream()
           .map(node -> CompletableFuture.runAsync(() -> {
+            // 调用执行智能体真正处理当前节点。
             String partial = workerAgent.execute(node, workspace);
+            // 把当前节点的结果写回共享工作区，供后续节点继续消费。
             workspace.put(node.getWorkspaceKey(), partial, node.getAgentName());
           }, agentExecutor))
           .toList();
 
+      // 等这一批节点全部执行完成，再进入下一步依赖释放。
       CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
+      // 当前批次执行完后，尝试释放它们的下游节点。
       for (TaskNode finished : batch) {
+        // 找到当前节点对应的所有下游任务。
         for (String nextTaskId : nextMap.getOrDefault(finished.getTaskId(), List.of())) {
+          // 下游节点完成了一个前置依赖，所以入度减 1。
           int remain = indegree.computeIfPresent(nextTaskId, (key, value) -> value - 1);
+
+          // 如果入度已经减到 0，说明它的所有前置任务都完成了，可以加入下一轮 readyQueue。
           if (remain == 0 && nodeMap.get(nextTaskId) != null) {
             readyQueue.offer(nodeMap.get(nextTaskId));
           }
@@ -3427,22 +3456,161 @@ public class AiWritingOrchestratorService {
 ### 核心支撑对象
 ```java
 /**
- * 复杂度打分器：先判断任务适不适合走 Fast，避免所有请求都进入多智能体编排。
+ * 路由智能体：负责判断任务应该走 Fast 还是 Swarm。
+ * 这里不直接暴露“复杂度分数”，而是返回一个更适合业务层消费的路由决策对象。
  */
-public interface ComplexityScorer {
-  int score(AiWritingRequest request);
+public interface EditorRouteAgent {
+  RouteDecision route(AiWritingRequest request);
 }
 
 /**
- * 规划器：把复杂任务拆成多个可并行执行的子任务，形成任务 DAG。
+ * 一个“够讲清楚”的路由实现：
+ * - 简单任务直接走 Fast，减少编排开销
+ * - 复杂任务走 Swarm，换取更强的拆解、校验和聚合能力
+ */
+@Service
+public class DefaultEditorRouteAgent implements EditorRouteAgent {
+
+  @Override
+  public RouteDecision route(AiWritingRequest request) {
+    if (request == null || !org.springframework.util.StringUtils.hasText(request.getContent())) {
+      return new RouteDecision(ExecutionMode.FAST, "empty-content");
+    }
+
+    String content = request.getContent();
+    int length = content.length();
+
+    // 1. Mermaid 这类结构化输出对格式要求高，优先走 Swarm。
+    if (request.getTaskType() == AiWritingTaskType.MERMAID) {
+      return new RouteDecision(ExecutionMode.SWARM, "structured-output");
+    }
+
+    // 2. 需要外部知识检索时，通常意味着链路更长，优先走 Swarm。
+    if (request.isNeedKnowledgeBase()) {
+      return new RouteDecision(ExecutionMode.SWARM, "need-knowledge-base");
+    }
+
+    // 3. 输入很长时，往往更适合先拆任务再处理。
+    if (length > 1200) {
+      return new RouteDecision(ExecutionMode.SWARM, "long-input");
+    }
+
+    // 4. 某些任务天然更适合直接快走，比如轻量翻译、短文本润色。
+    if (request.getTaskType() == AiWritingTaskType.TRANSLATE && length < 800) {
+      return new RouteDecision(ExecutionMode.FAST, "short-translate");
+    }
+    if (request.getTaskType() == AiWritingTaskType.POLISH && length < 600) {
+      return new RouteDecision(ExecutionMode.FAST, "short-polish");
+    }
+
+    // 5. 如果用户请求里带有明显的多步骤意图，也优先走 Swarm。
+    String lowered = content.toLowerCase(java.util.Locale.ROOT);
+    boolean hasMultiStepIntent =
+        lowered.contains("先") && lowered.contains("再")
+        || lowered.contains("最后")
+        || lowered.contains("并生成")
+        || lowered.contains("同时输出");
+    if (hasMultiStepIntent) {
+      return new RouteDecision(ExecutionMode.SWARM, "multi-step-intent");
+    }
+
+    // 默认兜底：中低复杂度任务走 Fast，保证响应速度。
+    return new RouteDecision(ExecutionMode.FAST, "default-fast");
+  }
+}
+
+public record RouteDecision(
+    ExecutionMode mode,
+    String reason
+) {}
+
+public enum ExecutionMode {
+  FAST,
+  SWARM
+}
+
+/**
+ * 规划智能体：把复杂任务拆成多个可并行执行的子任务，形成任务 DAG。
  */
 public interface PlannerAgent {
   TaskPlan plan(AiWritingRequest request);
 }
 
 /**
- * Worker：负责执行翻译、润色、总结、Mermaid 生成等具体子任务。
- * 在 Swarm 模式里，Worker 不直接修改最终结果，而是先把中间结果写回共享工作区。
+ * 一个“够讲清楚”的规划智能体实现：
+ * - 简单任务不需要复杂拆解，直接生成单节点计划
+ * - 复杂任务会拆成多个有依赖关系的子任务
+ * - 如果几个子任务彼此独立，就可以并行执行
+ */
+@Service
+public class DefaultPlannerAgent implements PlannerAgent {
+
+  @Override
+  public TaskPlan plan(AiWritingRequest request) {
+    TaskPlan plan = new TaskPlan();
+    plan.setRequestId(java.util.UUID.randomUUID().toString());
+
+    // Mermaid 任务：先提炼结构，再生成图代码。
+    if (request.getTaskType() == AiWritingTaskType.MERMAID) {
+      plan.setNodes(List.of(
+          TaskNode.of("extract-structure", "outline", AiWritingTaskType.SUMMARY, List.of(), "planner"),
+          TaskNode.of("generate-mermaid", "mermaid.output", AiWritingTaskType.MERMAID, List.of("extract-structure"), "mermaid-worker")
+      ));
+      plan.setStrictValidation(true);
+      plan.setPatchHints(List.of(DocumentPatch.block(PatchType.MERMAID, "")));
+      return plan;
+    }
+
+    // 长文总结：先提炼背景、风险点、待办事项，再汇总成最终摘要。
+    if (request.getTaskType() == AiWritingTaskType.SUMMARY && request.getContent() != null && request.getContent().length() > 1200) {
+      plan.setNodes(List.of(
+          TaskNode.of("extract-background", "summary.background", AiWritingTaskType.SUMMARY, List.of(), "summary-worker"),
+          TaskNode.of("extract-risks", "summary.risks", AiWritingTaskType.SUMMARY, List.of(), "summary-worker"),
+          TaskNode.of("extract-actions", "summary.actions", AiWritingTaskType.SUMMARY, List.of(), "summary-worker"),
+          TaskNode.of("merge-summary", "summary.final", AiWritingTaskType.REWRITE,
+              List.of("extract-background", "extract-risks", "extract-actions"), "summary-worker")
+      ));
+      plan.setStrictValidation(true);
+      plan.setPatchHints(List.of(DocumentPatch.block(PatchType.REPLACE, "")));
+      return plan;
+    }
+
+    // 多步骤改写：先总结，再改写，再补结论。
+    if (looksLikeMultiStepTask(request.getContent())) {
+      plan.setNodes(List.of(
+          TaskNode.of("summarize-context", "rewrite.summary", AiWritingTaskType.SUMMARY, List.of(), "summary-worker"),
+          TaskNode.of("rewrite-body", "rewrite.body", AiWritingTaskType.REWRITE, List.of("summarize-context"), "rewrite-worker"),
+          TaskNode.of("append-conclusion", "rewrite.conclusion", AiWritingTaskType.REWRITE, List.of("rewrite-body"), "rewrite-worker")
+      ));
+      plan.setStrictValidation(false);
+      plan.setPatchHints(List.of(DocumentPatch.block(PatchType.REPLACE, "")));
+      return plan;
+    }
+
+    // 默认兜底：生成单节点计划，交给执行智能体直接处理。
+    plan.setNodes(List.of(
+        TaskNode.of("single-step", "default.output", request.getTaskType(), List.of(), "worker")
+    ));
+    plan.setStrictValidation(false);
+    plan.setPatchHints(List.of(DocumentPatch.block(PatchType.REPLACE, "")));
+    return plan;
+  }
+
+  private boolean looksLikeMultiStepTask(String content) {
+    if (!org.springframework.util.StringUtils.hasText(content)) {
+      return false;
+    }
+    return content.contains("先") && content.contains("再")
+        || content.contains("最后")
+        || content.contains("补一段结论")
+        || content.contains("生成Mermaid")
+        || content.contains("生成 Mermaid");
+  }
+}
+
+/**
+ * 执行智能体：负责执行翻译、润色、总结、Mermaid 生成等具体子任务。
+ * 在 Swarm 模式里，执行智能体不直接修改最终结果，而是先把中间结果写回共享工作区。
  */
 public interface WorkerAgent {
   String execute(AiWritingRequest request);
@@ -3451,7 +3619,96 @@ public interface WorkerAgent {
 }
 
 /**
- * Critic：负责检查内容是否偏题、格式是否正确、引用是否合法。
+ * 一个“够讲清楚”的执行智能体实现：
+ * 1. Fast 模式下，直接基于整段请求内容处理
+ * 2. Swarm 模式下，按 TaskNode 的类型处理子任务
+ * 3. 反思阶段不是整篇重写，而是根据问题做局部修正
+ */
+@Service
+public class DefaultWorkerAgent implements WorkerAgent {
+
+  @Override
+  public String execute(AiWritingRequest request) {
+    if (request == null || !org.springframework.util.StringUtils.hasText(request.getContent())) {
+      return "";
+    }
+
+    String content = request.getContent().trim();
+
+    // 这里不接真实模型调用，而是用“够讲清楚”的伪实现表达不同任务类型的处理方式。
+    return switch (request.getTaskType()) {
+      case TRANSLATE -> "【翻译结果】\n" + content;
+      case POLISH -> "【润色结果】\n" + content;
+      case SUMMARY -> "【总结结果】\n" + content;
+      case MERMAID -> "graph TD\nA[开始] --> B[结束]";
+      case REWRITE -> "【改写结果】\n" + content;
+    };
+  }
+
+  @Override
+  public String execute(TaskNode node, SharedWorkspace workspace) {
+    if (node == null) {
+      return "";
+    }
+
+    // 默认从 request.content 里取原始输入，后续也可以按依赖节点结果继续拼接上下文。
+    String baseContent = workspace.get("request.content")
+        .map(WorkspaceCell::value)
+        .orElse("");
+
+    // 如果当前节点有依赖，就先把依赖结果拼进上下文，模拟“后续节点消费上游结果”。
+    String dependencyContext = node.getDependsOn().stream()
+        .map(dependsOn -> workspace.get(dependsOn)
+            .or(() -> workspace.get(resolveWorkspaceKey(dependsOn, workspace)))
+            .map(WorkspaceCell::value)
+            .orElse(""))
+        .filter(org.springframework.util.StringUtils::hasText)
+        .collect(Collectors.joining("\n"));
+
+    String promptSource = org.springframework.util.StringUtils.hasText(dependencyContext)
+        ? dependencyContext
+        : baseContent;
+
+    // 根据任务节点类型，返回一个能体现处理意图的中间结果。
+    return switch (node.getTaskType()) {
+      case SUMMARY -> "【节点总结：" + node.getTaskId() + "】\n" + promptSource;
+      case TRANSLATE -> "【节点翻译：" + node.getTaskId() + "】\n" + promptSource;
+      case POLISH -> "【节点润色：" + node.getTaskId() + "】\n" + promptSource;
+      case REWRITE -> "【节点改写：" + node.getTaskId() + "】\n" + promptSource;
+      case MERMAID -> """
+          graph TD
+          A[提炼结构] --> B[生成Mermaid]
+          B --> C[输出图代码]
+          """.trim();
+    };
+  }
+
+  @Override
+  public String revise(AiWritingRequest request, String draft, List<String> issues, SharedWorkspace workspace) {
+    // 反思阶段不做整篇重写，而是把“评审发现的问题”追加到修正上下文里，模拟局部修订。
+    String issueSummary = issues == null || issues.isEmpty()
+        ? "无明确问题"
+        : String.join("；", issues);
+
+    return """
+        【修正版】
+        原稿：
+        %s
+
+        修正说明：
+        %s
+        """.formatted(draft == null ? "" : draft, issueSummary).trim();
+  }
+
+  private String resolveWorkspaceKey(String taskId, SharedWorkspace workspace) {
+    // demo 里没有再单独建 taskId -> workspaceKey 索引，所以这里先简单兜底返回 taskId 本身。
+    // 如果真实项目里有节点注册表，这里可以直接查到更准确的 workspaceKey。
+    return taskId;
+  }
+}
+
+/**
+ * 评审智能体：负责检查内容是否偏题、格式是否正确、引用是否合法。
  * 这里给它加一个 signature，方便做“有没有实质变化”的收敛判断。
  */
 public interface CriticAgent {
@@ -3459,10 +3716,103 @@ public interface CriticAgent {
 }
 
 /**
- * Merger：负责把多个 Worker 的中间结果聚合成最终可交付内容。
+ * 一个“够讲清楚”的评审智能体实现：
+ * 1. 先做一些轻量规则检查
+ * 2. 判断当前草稿是否通过
+ * 3. 如果没通过，就把问题清单返回给执行智能体做下一轮修正
+ */
+@Service
+public class DefaultCriticAgent implements CriticAgent {
+
+  @Override
+  public CriticResult review(AiWritingRequest request, String draft, SharedWorkspace workspace) {
+    List<String> issues = new ArrayList<>();
+    String content = draft == null ? "" : draft.trim();
+
+    // 1. 空内容直接判为不通过。
+    if (!org.springframework.util.StringUtils.hasText(content)) {
+      issues.add("结果为空");
+    }
+
+    // 2. Mermaid 任务额外检查基础语法特征，避免返回普通文本。
+    if (request != null && request.getTaskType() == AiWritingTaskType.MERMAID) {
+      boolean looksLikeMermaid = content.startsWith("graph ")
+          || content.startsWith("flowchart ")
+          || content.contains("-->");
+      if (!looksLikeMermaid) {
+        issues.add("Mermaid 语法特征不足");
+      }
+    }
+
+    // 3. 对需要总结的任务，简单检查是不是只原样返回了大段原文，没有明显提炼。
+    if (request != null && request.getTaskType() == AiWritingTaskType.SUMMARY) {
+      String source = request.getContent() == null ? "" : request.getContent().trim();
+      if (org.springframework.util.StringUtils.hasText(source) && source.equals(content)) {
+        issues.add("总结结果与原文过于接近，缺少提炼");
+      }
+    }
+
+    // 4. 如果工作区里已经有路由原因，也可以顺手挂到评审上下文，方便回溯。
+    String routeReason = workspace.get("route.reason")
+        .map(WorkspaceCell::value)
+        .orElse("unknown-route");
+
+    CriticResult result = new CriticResult();
+    result.setPass(issues.isEmpty());
+    result.setIssues(issues);
+    result.setSignature(routeReason + "|" + String.join("|", issues));
+    return result;
+  }
+}
+
+/**
+ * 汇总智能体：负责把多个执行智能体的中间结果聚合成最终可交付内容。
  */
 public interface MergerAgent {
   String merge(SharedWorkspace workspace);
+}
+
+/**
+ * 一个“够讲清楚”的汇总智能体实现：
+ * 1. 优先读取规划阶段约定好的关键结果
+ * 2. 按一定顺序把多个中间结果拼成初稿
+ * 3. 如果是单节点任务，也能兜底返回唯一结果
+ */
+@Service
+public class DefaultMergerAgent implements MergerAgent {
+
+  @Override
+  public String merge(SharedWorkspace workspace) {
+    // 先尝试按几个常见 key 读取结果，模拟“按计划收口”。
+    List<String> preferredKeys = List.of(
+        "summary.final",
+        "rewrite.conclusion",
+        "rewrite.body",
+        "rewrite.summary",
+        "mermaid.output",
+        "default.output",
+        "fast.output"
+    );
+
+    List<String> parts = preferredKeys.stream()
+        .map(workspace::get)
+        .flatMap(java.util.Optional::stream)
+        .map(WorkspaceCell::value)
+        .filter(org.springframework.util.StringUtils::hasText)
+        .toList();
+
+    // 如果命中了关键结果，就按顺序拼起来。
+    if (!parts.isEmpty()) {
+      return String.join("\n\n", parts);
+    }
+
+    // 否则兜底：把工作区里所有有内容的结果按版本顺序拼成一份初稿。
+    return workspace.snapshot().values().stream()
+        .sorted(Comparator.comparingLong(WorkspaceCell::version))
+        .map(WorkspaceCell::value)
+        .filter(org.springframework.util.StringUtils::hasText)
+        .collect(Collectors.joining("\n\n"));
+  }
 }
 
 /**
@@ -3511,138 +3861,238 @@ public class DefaultResponseAssembler implements ResponseAssembler {
 
 /**
  * SharedWorkspace：黑板模式里的共享工作区。
- * 这里不只是一个 String Map，而是带版本号、来源、更新时间的可追踪数据结构，
- * 这样不同 Agent 写入时就能做冲突定位，也方便后续审计和回放。
+ * 1. 每个角色都可以把中间结果写进来
+ * 2. 后续节点只消费当前任务下最新、可用的数据
+ * 3. 既方便结果串联，也方便调试和回放
  */
 public class SharedWorkspace {
+  // requestId 表示这份共享工作区属于哪一次 AI 写作任务。
   private final String requestId;
+  // data 真正存放中间结果，key 是业务语义键，value 是带元信息的数据格。
   private final Map<String, WorkspaceCell> data = new java.util.concurrent.ConcurrentHashMap<>();
+  // version 用来给每次写入分配一个递增版本号，方便判断先后顺序。
   private final java.util.concurrent.atomic.AtomicLong version = new java.util.concurrent.atomic.AtomicLong(0);
 
   public SharedWorkspace(String requestId) {
+    // 创建工作区时就把当前任务 ID 绑定进去，方便后面调试和回放。
     this.requestId = requestId;
   }
 
   public String getRequestId() {
+    // 返回这份共享工作区对应的任务 ID。
     return requestId;
   }
 
   public long put(String key, String value, String producer) {
+    // key 为空时不写入，直接返回当前版本号，避免产生无意义数据。
     if (!org.springframework.util.StringUtils.hasText(key)) {
       return version.get();
     }
+    // 每次写入前先拿到一个新的递增版本号。
     long nextVersion = version.incrementAndGet();
+    // 把内容、版本号、产出者和写入时间一起存进去，形成一个完整的数据格。
     data.put(key, new WorkspaceCell(
         value == null ? "" : value,
         nextVersion,
         producer == null ? "unknown" : producer,
         java.time.Instant.now()
     ));
+    // 返回这次写入对应的版本号，方便调用方需要时做追踪。
     return nextVersion;
   }
 
   public java.util.Optional<WorkspaceCell> get(String key) {
+    // 按 key 读取某一块中间结果，用 Optional 包起来，避免空指针。
     return java.util.Optional.ofNullable(data.get(key));
   }
 
   public Map<String, WorkspaceCell> snapshot() {
+    // 返回一份只读快照，避免外部直接修改共享工作区内部状态。
     return java.util.Collections.unmodifiableMap(data);
   }
 }
 
 /**
  * 工作区里的单个数据格。
- * 版本号和 producer 这两个字段很关键：前者用于判断最新写入，后者用于定位是谁产出的中间结果。
+ * version 用于判断新旧，producer 用于定位是谁产出的中间结果。
  */
 public record WorkspaceCell(
+    // value 是这块中间结果真正的内容。
     String value,
+    // version 是写入版本号，数值越大表示写入越晚。
     long version,
+    // producer 表示是谁产出了这块内容，比如 router / worker / critic。
     String producer,
+    // updatedAt 记录写入时间，方便审计和调试。
     java.time.Instant updatedAt
 ) {}
 
 /**
- * 任务计划：规划器拆出来的结果。
+ * 任务计划：规划智能体拆出来的结果。
  * nodes 表示子任务列表，patchHints 给前端提供回填建议，strictValidation 用来控制反思阈值。
  */
 public class TaskPlan {
+  // requestId 表示这份任务计划属于哪一次请求。
   private String requestId;
+  // nodes 是规划智能体拆出来的任务节点列表。
   private List<TaskNode> nodes = List.of();
+  // patchHints 是给前端的回填建议，比如 replace 还是 mermaid。
   private List<DocumentPatch> patchHints = List.of();
+  // strictValidation 表示这类任务是否需要更严格的评审和反思。
   private boolean strictValidation;
 
   public String getRequestId() {
+    // 如果没有显式设置 requestId，就兜底生成一个随机 ID。
     return requestId == null ? java.util.UUID.randomUUID().toString() : requestId;
   }
 
   public List<TaskNode> getNodes() {
+    // 返回任务节点列表，没有时返回空列表，避免调用方判空。
     return nodes == null ? List.of() : nodes;
   }
 
   public List<DocumentPatch> getPatchHints() {
+    // 返回前端回填提示，没有时同样返回空列表。
     return patchHints == null ? List.of() : patchHints;
   }
 
   public boolean requiresStrictValidation() {
+    // 返回这份计划是否要求严格校验。
     return strictValidation;
+  }
+
+  public void setRequestId(String requestId) {
+    // 设置任务计划 ID。
+    this.requestId = requestId;
+  }
+
+  public void setNodes(List<TaskNode> nodes) {
+    // 设置任务节点列表。
+    this.nodes = nodes;
+  }
+
+  public void setPatchHints(List<DocumentPatch> patchHints) {
+    // 设置前端回填提示。
+    this.patchHints = patchHints;
+  }
+
+  public void setStrictValidation(boolean strictValidation) {
+    // 设置是否开启严格校验。
+    this.strictValidation = strictValidation;
   }
 }
 
 /**
  * 任务节点：用于描述子任务、依赖关系和目标类型。
- * 这里把 workspaceKey 一并带上，是为了明确每个 Worker 的结果写到哪里。
+ * 这里把 workspaceKey 一并带上，是为了明确每个执行智能体的结果写到哪里。
  */
 public class TaskNode {
+  // taskId 是任务节点自己的唯一标识，用来参与依赖计算。
   private String taskId;
+  // workspaceKey 表示当前节点执行完成后，结果要写入共享工作区的哪个 key。
   private String workspaceKey;
+  // prompt 预留给更细的子任务提示词，这个 demo 里没有展开使用。
   private String prompt;
+  // taskType 表示当前节点本质上在做什么类型的任务。
   private AiWritingTaskType taskType;
+  // dependsOn 存的是当前节点依赖的上游节点 ID 列表。
   private List<String> dependsOn = List.of();
+  // agentName 表示这一步更像由哪类执行智能体完成。
   private String agentName;
 
   public String getTaskId() {
+    // 返回节点自己的唯一标识。
     return taskId;
   }
 
   public String getWorkspaceKey() {
+    // 如果外部没传 workspaceKey，就兜底用 taskId 作为写入 key。
     return org.springframework.util.StringUtils.hasText(workspaceKey) ? workspaceKey : taskId;
   }
 
   public AiWritingTaskType getTaskType() {
+    // 返回当前节点的任务类型。
     return taskType;
   }
 
   public List<String> getDependsOn() {
+    // 返回依赖列表，没有依赖时返回空列表。
     return dependsOn == null ? List.of() : dependsOn;
   }
 
   public String getAgentName() {
+    // 返回执行角色名称，没有时默认叫 worker。
     return org.springframework.util.StringUtils.hasText(agentName) ? agentName : "worker";
+  }
+
+  public static TaskNode of(
+      String taskId,
+      String workspaceKey,
+      AiWritingTaskType taskType,
+      List<String> dependsOn,
+      String agentName
+  ) {
+    // 用静态工厂方法快速创建一个任务节点，减少外部手动 set 字段的样板代码。
+    TaskNode node = new TaskNode();
+    // 设置节点 ID。
+    node.taskId = taskId;
+    // 设置结果写回共享工作区的 key。
+    node.workspaceKey = workspaceKey;
+    // 设置这一步的任务类型。
+    node.taskType = taskType;
+    // 设置依赖节点，没有依赖时用空列表兜底。
+    node.dependsOn = dependsOn == null ? List.of() : dependsOn;
+    // 设置执行角色名称。
+    node.agentName = agentName;
+    // 返回构造好的任务节点。
+    return node;
   }
 }
 
 /**
- * 反思结果：Critic 告诉 Worker 哪些地方需要修正。
+ * 反思结果：评审智能体告诉执行智能体哪些地方需要修正。
  * signature 用来做收敛判断，避免同样的问题一直重复出现。
  */
 public class CriticResult {
+  // pass 表示这轮评审是否通过。
   private boolean pass;
+  // issues 表示评审智能体识别出来的问题列表。
   private List<String> issues;
+  // signature 是问题签名，用来判断连续两轮问题是否本质相同。
   private String signature;
 
   public boolean isPass() {
+    // 返回这轮评审是否通过。
     return pass;
   }
 
+  public void setPass(boolean pass) {
+    // 设置这轮评审是否通过。
+    this.pass = pass;
+  }
+
   public List<String> getIssues() {
+    // 返回问题列表，没有时返回空列表。
     return issues == null ? List.of() : issues;
   }
 
+  public void setIssues(List<String> issues) {
+    // 设置问题列表。
+    this.issues = issues;
+  }
+
   public String signature() {
+    // 如果已经有现成签名，就直接返回。
     if (org.springframework.util.StringUtils.hasText(signature)) {
       return signature;
     }
+    // 否则把问题列表拼起来，形成一个可比较的默认签名。
     return String.join("|", getIssues());
+  }
+
+  public void setSignature(String signature) {
+    // 设置问题签名。
+    this.signature = signature;
   }
 }
 
@@ -3651,47 +4101,63 @@ public class CriticResult {
  * 不是只返回一段文本，而是返回“文本 + 操作建议”，这样前端才能知道该插入、替换还是生成 Mermaid。
  */
 public class AiWritingResult {
+  // content 是最终给用户展示的文本内容。
   private final String content;
+  // mode 记录这次执行走的是 FAST 还是 SWARM。
   private final String mode;
+  // patches 是前端真正执行回填时要消费的结构化编辑指令。
   private final List<DocumentPatch> patches;
+  // workspaceSnapshot 是这次任务结束时的共享工作区快照，便于调试和回放。
   private final Map<String, WorkspaceCell> workspaceSnapshot;
 
   private AiWritingResult(String content, String mode, List<DocumentPatch> patches, Map<String, WorkspaceCell> workspaceSnapshot) {
+    // 保存最终文本。
     this.content = content;
+    // 保存执行模式。
     this.mode = mode;
+    // patches 为空时统一兜底为空列表。
     this.patches = patches == null ? List.of() : patches;
+    // 工作区快照为空时同样兜底为空 Map。
     this.workspaceSnapshot = workspaceSnapshot == null ? Map.of() : workspaceSnapshot;
   }
 
   public static AiWritingResult empty() {
+    // 空结果工厂：适合空请求或无需继续处理的场景。
     return new AiWritingResult("", "EMPTY", List.of(), Map.of());
   }
 
   public static AiWritingResult success(String content, String mode) {
+    // 成功结果工厂：只返回文本和模式。
     return new AiWritingResult(content, mode, List.of(), Map.of());
   }
 
   public static AiWritingResult success(String content, String mode, List<DocumentPatch> patches) {
+    // 成功结果工厂：额外带上 patch。
     return new AiWritingResult(content, mode, patches, Map.of());
   }
 
   public static AiWritingResult success(String content, String mode, List<DocumentPatch> patches, Map<String, WorkspaceCell> workspaceSnapshot) {
+    // 最完整的成功结果工厂：文本、模式、patch、工作区快照一起返回。
     return new AiWritingResult(content, mode, patches, workspaceSnapshot);
   }
 
   public String getContent() {
+    // 读取最终文本内容。
     return content;
   }
 
   public String getMode() {
+    // 读取执行模式。
     return mode;
   }
 
   public List<DocumentPatch> getPatches() {
+    // 读取前端要消费的 patch 列表。
     return patches;
   }
 
   public Map<String, WorkspaceCell> getWorkspaceSnapshot() {
+    // 读取共享工作区快照。
     return workspaceSnapshot;
   }
 }
@@ -3701,84 +4167,121 @@ public class AiWritingResult {
  * 比如：替换某个区间、插入一段内容、或者把这段内容当成 Mermaid 代码块渲染。
  */
 public class DocumentPatch {
+  // type 表示这次回填属于插入、替换、追加还是 Mermaid 块。
   private PatchType type;
+  // startOffset 表示回填起始位置。
   private int startOffset;
+  // endOffset 表示回填结束位置。
   private int endOffset;
+  // content 是真正要插入或替换进去的内容。
   private String content;
+  // meta 预留给附加信息，比如 target、blockId、引用信息等。
   private Map<String, Object> meta = Map.of();
 
   public PatchType getType() {
+    // 返回 patch 类型。
     return type;
   }
 
   public int getStartOffset() {
+    // 返回起始位置。
     return startOffset;
   }
 
   public int getEndOffset() {
+    // 返回结束位置。
     return endOffset;
   }
 
   public String getContent() {
+    // 返回 patch 内容。
     return content;
   }
 
   public Map<String, Object> getMeta() {
+    // 返回附加元信息，没有时用空 Map 兜底。
     return meta == null ? Map.of() : meta;
   }
 
   public static DocumentPatch block(PatchType type, String content) {
+    // 用快捷工厂方法快速生成“面向当前选区”的 patch。
     DocumentPatch patch = new DocumentPatch();
+    // 设置 patch 类型。
     patch.type = type;
+    // demo 为了简化，不按精确 offset 回填，所以起止位置先给 0。
     patch.startOffset = 0;
     patch.endOffset = 0;
+    // 设置真正要回填的内容。
     patch.content = content;
+    // target=selection 表示默认作用于当前选区。
     patch.meta = Map.of("target", "selection");
+    // 返回构造好的 patch。
     return patch;
   }
 }
 
 public enum PatchType {
+  // 插入内容到某个位置。
   INSERT,
+  // 替换某个区间的原内容。
   REPLACE,
+  // 在当前块或文档末尾追加内容。
   APPEND,
+  // 以 Mermaid 代码块的形式回填。
   MERMAID
 }
 
 public enum AiWritingTaskType {
+  // 翻译任务。
   TRANSLATE,
+  // 润色任务。
   POLISH,
+  // 总结任务。
   SUMMARY,
+  // Mermaid 图生成任务。
   MERMAID,
+  // 改写任务。
   REWRITE
 }
 
 public class AiWritingRequest {
+  // content 是用户当前选中的正文内容或输入内容。
   private String content;
+  // title 预留给标题、章节名等辅助信息。
   private String title;
+  // taskType 表示这次要做什么任务。
   private AiWritingTaskType taskType;
+  // needKnowledgeBase 表示这次是否需要接知识库检索。
   private boolean needKnowledgeBase;
+  // documentId 标识当前处理的是哪篇文档。
   private String documentId;
+  // userId 表示这次请求是谁发起的。
   private String userId;
+  // maxReflectionRounds 允许调用方覆盖默认反思轮数。
   private Integer maxReflectionRounds;
 
   public String getContent() {
+    // 返回当前请求的正文内容。
     return content;
   }
 
   public String getTitle() {
+    // 返回标题信息。
     return title;
   }
 
   public AiWritingTaskType getTaskType() {
+    // 如果外部没传 taskType，就默认按润色处理。
     return taskType == null ? AiWritingTaskType.POLISH : taskType;
   }
 
   public boolean isNeedKnowledgeBase() {
+    // 返回这次请求是否需要知识库增强。
     return needKnowledgeBase;
   }
 
   public int getMaxReflectionRoundsOrDefault(int fallback) {
+    // 如果外部没有指定反思轮数，就用 fallback；如果指定了，至少保证大于等于 1。
     return maxReflectionRounds == null ? fallback : Math.max(1, maxReflectionRounds);
   }
 }
