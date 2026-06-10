@@ -1,22 +1,32 @@
-var LRUCache = function(capacity) {
-    this.capacity = capacity;
-    this.map = new Map();
-};
+var restoreIpAddresses = function(s) {
+    const res = [];
+    const dfs = (start, path) => {
+        if (path.length === 4 || start === s.length) {
+            res.push(path.join('.'));
+            return ;
+        }
 
-LRUCache.prototype.get = function(key) {
-    if (!this.map.has(key)) return -1;
-    const value = this.map.get(key);
-    this.map.delete(key);
-    this.map.set(key, value);
-    return value;
-};
+        let remaining = s.length - start;
+        let segmentsLeft = 4 - path.length;
 
-LRUCache.prototype.put = function(key, value) {
-    if (this.map.has(key)) {
-        this.map.delete(key);
+        if (remaining < segmentsLeft || remaining > 3 * left) {
+            return ;
+        }
+
+        for (let len = 1; len <= 3; len++) {
+            if (start + len > s.length) break;
+            const segment = s.slice(start, start + len);
+            if (segment.length > 1 && segment[0] === '0') {
+                continue;
+            }
+            if (Number(segment) > 255) {
+                continue;
+            }
+            path.push(segment);
+            dfs(start + len, path);
+            path.pop();
+        }
     }
-    if (this.map.size >= this.capacity) {
-        this.map.delete(this.map.keys().next().value);
-    }
-    this.map.set(key, value);
-};
+    dfs(0, []);
+    return res;
+}

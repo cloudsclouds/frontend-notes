@@ -80,7 +80,7 @@ var spiralOrder = function(matrix) {
 };
 ```
 
-## 4. 数组洗牌 (T58)
+## 4. 数组洗牌 (T59)
 1. 从数组末尾开始遍历
 2. 随机选择 `[0, i]` 的索引
 3. 交换当前元素与随机元素
@@ -272,7 +272,7 @@ var groupAnagrams = function(strs) {
     for (let str of strs) {
         const key = str.split('').sort().join('');
         if (!myMap.has(key)) {
-            myMap.set(key, str);
+            myMap.set(key, []);
         }
         myMap.get(key).push(str);
     }
@@ -406,7 +406,7 @@ var maxProfit = function(prices) {
 };
 ```
 
-## 15. 买卖股票的最佳时机 II
+## 15. 买卖股票的最佳时机 II (T56)
 可以多次交易，只要今天价格比昨天高，就把这段利润加上。
 
 ```js
@@ -437,8 +437,47 @@ var canJump = function(nums) {
 };
 ```
 
+## 盛最多水的容器
+左右双指针向中间收缩，每次移动较短的那一边，因为面积由短板决定。
+```js
+var maxArea = function(height) {
+    let left = 0, right = height.length - 1;
+    let ans = 0;
+    while (left < right) {
+        const h = Math.min(height[left], height[right]);
+        ans = Math.max(ans, h * (right - left));
+        if (height[left] < height[right]) {
+            left++;
+        } else {
+            right--;
+        }
+    }
+    return ans;
+};
+```
+
+## 跳跃游戏 II
+贪心维护当前这一跳能覆盖的最远范围。
+```js
+var jump = function(nums) {
+    let end = 0;
+    let farthest = 0;
+    let steps = 0;
+
+    for (let i = 0; i < nums.length - 1; i++) {
+        farthest = Math.max(farthest, i + nums[i]);
+        if (i === end) {
+            steps++;
+            end = farthest;
+        }
+    }
+
+    return steps;
+};
+```
+
 # DP
-## 17. 爬楼梯 (T20)、斐波那契数列 (T34)
+## 17. 爬楼梯 (T20)、斐波那契数列 (T34)、跳台阶 (T64)
 ```js
 var climbStairs = function(n) {
     const dp = new Array(n+1).fill(0);
@@ -502,45 +541,6 @@ var lengthOfLIS = function(nums) {
 };
 ```
 
-## 背包问题
-### 0-1背包
-```
-dp[j] = 容量为j时的最大价值 = max(不选当前物品, 选当前物品)
-```
-必须：倒序，否则：一个物品会被重复选
-
-```js
-for (let i = 0; i < n; i++) {
-    for (let j = W; j >= weight[i]; j--) {
-        dp[j] = Math.max(dp[j], dp[j-weight[i]] + value[i])
-    }
-}
-```
-
-### 完全背包
-```js
-for (let i = 0; i < n; i++) {
-    for (let j = weight[i]; j <= W; j++) {
-        dp[j] = Math.max(dp[j], dp[j-weight[i]] + value[i])
-    }
-}
-```
-
-## 完全平方数
-给你一个正整数 n，找到若干个完全平方数之和等于 n，并且要求使用的数量最少。
-dp[i] = 凑成数字 i 所需的最少完全平方数个数
-```js
-var numSquares = function(n) {
-    const dp = new Array(n+1).fill(Infinity);
-    for (let i = 0; i <= n; i++) {
-        for (let j = 1; j*j <= i; j++) {
-            dp[i] = Math.min(dp[i], dp[i-j*j]+1);
-        }
-    }
-    return dp[n];
-}
-```
-
 ## 最大乘积子数组
 ```
 maxDp[i] = 以 i 结尾的最大乘积
@@ -571,6 +571,47 @@ var maxProduct = function(nums) {
 ```
 
 
+## 背包问题
+### 0-1背包
+```
+dp[j] = 容量为j时的最大价值 = max(不选当前物品, 选当前物品)
+```
+必须：倒序，否则：一个物品会被重复选
+
+```js
+for (let i = 0; i < n; i++) {
+    for (let j = W; j >= weight[i]; j--) {
+        dp[j] = Math.max(dp[j], dp[j-weight[i]] + value[i])
+    }
+}
+```
+
+### 完全背包
+```js
+for (let i = 0; i < n; i++) {
+    for (let j = weight[i]; j <= W; j++) {
+        dp[j] = Math.max(dp[j], dp[j-weight[i]] + value[i])
+    }
+}
+```
+
+## 完全平方数
+给你一个正整数 n，找到若干个完全平方数之和等于 n，并且要求使用的数量最少。
+dp[i] = 凑成数字 i 所需的最少完全平方数个数
+```js
+var numSquares = function(n) {
+    const dp = new Array(n+1).fill(Infinity);
+    dp[0] = 0;
+    for (let i = 0; i <= n; i++) {
+        for (let j = 1; j*j <= i; j++) {
+            dp[i] = Math.min(dp[i], dp[i-j*j]+1);
+        }
+    }
+    return dp[n];
+}
+```
+
+
 ## 21. 零钱兑换 (T28)
 给定不同面额的硬币 coins 和一个总金额 amount。编写一个函数来计算可以凑成总金额所需的最少的硬币个数。如果没有任何一种硬币组合能组成总金额，返回 -1。你可以认为每种硬币的数量是无限的。
 `dp[i]` = 凑出金额 i 的最少硬币数
@@ -590,6 +631,27 @@ var coinChange = function(coins, amount) {
 };
 ```
 
+## 单词拆分
+定义 dp[i] 为前 i 个字符是否可以被拆分成单词。
+```js
+var wordBreak = function(s, wordDict) {
+    const set = new Set(wordDict);
+    const dp = new Array(s.length + 1).fill(false);
+    dp[0] = true;
+
+    for (let i = 1; i <= s.length; i++) {
+        for (let j = 0; j < i; j++) {
+            if (dp[j] && set.has(s.slice(j, i))) {
+                dp[i] = true;
+                break;
+            }
+        }
+    }
+
+    return dp[s.length];
+};
+```
+
 ## 22. 不同路径 (T40)
 `dp[i][j] = dp[i-1][j] + dp[i][j-1] = 到达(i,j)的路径数`
 第一行 = 1，第一列 = 1
@@ -606,7 +668,7 @@ var uniquePaths = function(m, n) {
 };
 ```
 
-## 23. 最小路径和
+## 23. 最小路径和 (T61)
 
 尤其注意初始化路径：dp[0][0] = grid[0][0]，第一行：累加，第一列：累加
 dp[i][j] = 到(i,j)的最小路径和 = min(上, 左) + 当前值
@@ -687,6 +749,43 @@ var longestCommonSubsequence = function(text1, text2) {
             }
         }
     }
+    return dp[m][n];
+};
+```
+
+## 编辑距离
+定义 dp[i][j] 为将 word1 前 i 个字符转换成 word2 前 j 个字符所需的最少操作次数。
+
+初始化时：
+dp[i][0] = i，表示删除所有字符；
+dp[0][j] = j，表示插入所有字符。
+
+转移时：
+如果当前字符相同，则不需要额外操作，dp[i][j] = dp[i-1][j-1]；
+如果不同，则最后一步一定是删除、插入或替换三种操作之一，因此取三者最小值再加一。
+```js
+var minDistance = function(word1, word2) {
+    const m = word1.length;
+    const n = word2.length;
+    const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (word1[i - 1] === word2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1];
+            } else {
+                dp[i][j] = Math.min(
+                    dp[i - 1][j],
+                    dp[i][j - 1],
+                    dp[i - 1][j - 1]
+                ) + 1;
+            }
+        }
+    }
+
     return dp[m][n];
 };
 ```
@@ -1063,7 +1162,7 @@ var hasCycle = function(head) {
 }
 ```
 
-## 41. 删除链表倒数第N个节点 (T32)、(T57)
+## 41. 删除链表倒数第N个节点 (T32)、(T58)
 > dummy 节点用于统一链表操作，特别是在删除头节点时，可以避免单独处理边界情况，使代码更加简洁和安全。
 ```js
 var removeNthFromEnd = function(head, n) {
@@ -1114,7 +1213,7 @@ var reverseKGroup = function(head, k) {
 ## 43. 相交链表 (T54)
 ```js
 var getIntersectionNode = function(headA, headB) {
-    if (headA == null || headB = null)  return null;
+    if (headA == null || headB == null)  return null;
     let pA = headA, pB = headB;
     while(pA !== pB) {
         pA = pA === null ? headB : pA.next;
@@ -1146,7 +1245,7 @@ var addTwoNumbers = function(l1, l2) {
 };
 ```
 
-## 45. 重排链表
+## 45. 重排链表 (T62)
 给定一个单链表 L0 → L1 → ... → Ln-1 → Ln，
 请将其重新排列为：
 L0 → Ln → L1 → Ln-1 → L2 → Ln-2 → ...
@@ -1173,14 +1272,14 @@ var reorderList = function(head) {
     slow.next = null;
     while (curr) {
         const next = curr.next;
-        curr.next = prev;
-        prev = curr;
+        curr.next = pre;
+        pre = curr;
         curr = next;
     }
 
     // 3. 合并两个链表
     let first = head;
-    let second = prev;
+    let second = pre;
 
     while (second) {
         const temp1 = first.next;
@@ -1193,9 +1292,32 @@ var reorderList = function(head) {
 }
 ```
 
+## 46. 删除重复元素 (T65)
+给定一个已排序的链表的头 head ， 删除原始链表中所有重复数字的节点，只留下不同的数字 。返回 已排序的链表 。
+
+```js
+var deleteDuplicates = function(head) {
+    const dummy = new ListNode(0, head);
+    let prev = dummy, cur = head;
+    while (cur) {
+        if (cur.next && cur.val === cur.next.val) {
+            const val = cur.val;
+            while (cur && cur.val === val) {
+                cur = cur.next;
+            }
+            prev.next = cur;
+        } else {
+            prev = cur;
+            cur = cur.next;
+        }
+    }
+    return dummy.next;
+};
+```
+
 
 # 二叉树
-### 46. 二叉树的中序遍历 (T33)、前序遍历 (T59)
+### 46. 二叉树的中序遍历 (T33)、前序遍历 (T60)
 ```js
 var inorderTraversal = function(root) {
     const res = [];
@@ -1344,7 +1466,7 @@ var checkSymmetricTree = function(root) {
 };
 ```
 
-### 55. 从前序与中序遍历序列构造二叉树 (T56)
+### 55. 从前序与中序遍历序列构造二叉树 (T57)
 ```js
 var buildTree = function(preorder, inorder) {
     if (!preorder.length || !inorder.length) return null;
@@ -1530,7 +1652,78 @@ var combinationSum2 = function(candidates, target) {
 };
 ```
 
-## 62. 岛屿数量 (T22)
+## 62. 复原 IP 地址 (T27)
+给定一个只包含数字的字符串 s，通过在字符串中插入 . 将其分割成 4 个整数段，判断能否组成一个合法的 IP 地址。
+合法 IP 段要求
+- 每段长度 1~3
+- 不能有前导零，除非这一段就是 0
+- 每段数字范围 0~255
+
+输入：s = "25525511135"
+输出：["255.255.11.135","255.255.111.35"]
+
+```js
+var restoreIpAddresses = function(s) {
+    const res = [];
+
+    const dfs = (start, path) => {
+        if (path.length === 4 && start === s.length) {
+            res.push(path.join('.'));
+            return;
+        }
+
+        let remaining = s.length - start; // 还剩多少字符没用
+        let segmentsLeft = 4 - path.length; // 还需要分成多少段
+
+        if (remaining < segmentsLeft || remaining > segmentsLeft * 3) {
+            return ;
+        }
+
+        for (let len = 1; len <= 3; len++) {
+            if (start + len > s.length) break;
+            let segment = s.slice(start, start + len);
+            if (segment.length > 1 && segment[0] === '0')   continue;
+
+            if (Number(segment) > 255)  continue;
+            path.push(segment);
+            dfs(start+len, path);
+            path.pop();
+        }
+    }
+    dfs(0, []);
+    return res;
+};
+```
+
+## 63. 括号生成 (T30)
+每一步可以选择放左括号或右括号，但需要满足两个约束：
+- 左括号数量不能超过 n
+- 右括号数量不能超过左括号
+- 当字符串长度达到 2n 时说明生成了一个合法括号序列。
+```js
+var generateParenthesis = function(n) {
+    const res = [];
+    const dfs = (str, left, right) => {
+        if (str.length === 2 * n) {
+            res.push(str);
+            return;
+        }
+
+        if (left < n) {
+            dfs(str + '(', left + 1, right);
+        }
+
+        if (right < left) {
+            dfs(str + ')', left, right + 1);
+        }
+    }
+
+    dfs("", 0, 0);
+    return res;
+}
+```
+
+## 64. 岛屿数量 (T22)
 给你一个由 '1'（陆地）和 '0'（水）组成的二维网格 grid，请你计算网格中岛屿的数量。
 岛屿由水平方向或竖直方向相邻的陆地连接形成。
 你可以假设网格的四周被水包围。
@@ -1576,7 +1769,7 @@ var numIslands = function(grid) {
 }
 ```
 
-## 63. 岛屿的最大面积 (T31)
+## 65. 岛屿的最大面积 (T31)
 ```js
 var maxAreaOfIsland = function(grid) {
     const m = grid.length;
@@ -1602,73 +1795,159 @@ var maxAreaOfIsland = function(grid) {
 }
 ```
 
-## 64. 括号生成 (T30)
-每一步可以选择放左括号或右括号，但需要满足两个约束：
-- 左括号数量不能超过 n
-- 右括号数量不能超过左括号
-- 当字符串长度达到 2n 时说明生成了一个合法括号序列。
+
+# 其他
+
+## 只出现一次的数字
+给你一个 非空 整数数组 nums ，除了某个元素只出现一次以外，其余每个元素均出现两次。找出那个只出现了一次的元素。
+ 
+输入：nums = [2,2,1]
+输出：1
+
+思路：相同数字异或等于 0，任何数字和 0 异或还是它自己。
 ```js
-var generateParenthesis = function(n) {
-    const res = [];
-    const dfs = (str, left, right) => {
-        if (str.length === 2 * n) {
-            res.push([...str]);
-            return;
-        }
-
-        if (left < n) {
-            dfs(str + '(', left + 1, right);
-        }
-
-        if (right < left) {
-            dfs(str + ')', left, right + 1);
-        }
+var singleNumber = function(nums) {
+    let res = 0;
+    for (const num of nums) {
+        res ^= num;
     }
-
-    dfs("", 0, 0);
-    return res;
-}
-```
-
-## 65. 复原 IP 地址 (T27)
-给定一个只包含数字的字符串 s，通过在字符串中插入 . 将其分割成 4 个整数段，判断能否组成一个合法的 IP 地址。
-合法 IP 段要求
-- 每段长度 1~3
-- 不能有前导零，除非这一段就是 0
-- 每段数字范围 0~255
-
-输入：s = "25525511135"
-输出：["255.255.11.135","255.255.111.35"]
-
-```js
-var restoreIpAddresses = function(s) {
-    const res = [];
-
-    const dfs = (start, path) => {
-        if (path.length === 4 && start === s.length) {
-            res.push(path.join('.'));
-            return;
-        }
-
-        let remaining = s.length - start; // 还剩多少字符没用
-        let segmentsLeft = 4 - path.length; // 还需要分成多少段
-
-        if (remaining < segmentsLeft || remaining > segmentsLeft * 3) {
-            return ;
-        }
-
-        for (let len = 1; len <= 3; len++) {
-            if (start + len > s.length) break;
-            let segment = s.slice(start, start + len);
-            if (segment.length > 1 && segment[0] === '0')   continue;
-
-            if (Number(segment) > 255)  continue;
-            path.push(segment);
-            dfs(start+len, path);
-            path.pop();
-        }
-    }
-    dfs(0, []);
     return res;
 };
 ```
+
+## 多数元素
+给你一个大小为 n 的数组 nums ，返回其中的多数元素。多数元素是指在数组中出现次数大于 ⌊n / 2⌋ 的元素。
+
+输入：nums = [3,2,3]
+输出：3
+
+摩尔投票法的本质是“不同元素两两抵消”。
+由于多数元素数量超过数组长度的一半，因此它不可能被全部抵消掉。count 表示当前候选人的净领先票数，当 count 变为 0 时，说明当前这一段已经完全抵消，可以从下一个元素重新选择候选人。最终剩下的候选人就是多数元素。
+
+```js
+var majorityElement = function(nums) {
+    let count = 0;
+    let candidate = null;
+    for (const num of nums) {
+        // 如果当前没有候选人，则选择当前元素作为候选人
+        if (count === 0) candidate = num;
+        // 如果当前元素与候选人相同，则票数加1，否则票数减1
+        count += num === candidate ? 1 : -1;
+    }
+    return candidate;
+};
+```
+
+## 颜色分类s
+给定一个包含红色、白色和蓝色、共 n 个元素的数组 nums ，原地对它们进行排序，使得相同颜色的元素相邻，并按照红色、白色、蓝色顺序排列。
+我们使用整数 0、 1 和 2 分别表示红色、白色和蓝色。
+必须在不使用库的sort函数的情况下解决这个问题。
+
+输入：nums = [2,0,2,1,1,0]
+输出：[0,0,1,1,2,2]
+
+思路：双指针。
+[0, left-1]      全是 0
+[left, i-1]      全是 1
+[i, right]       未处理
+[right+1, n-1]   全是 2
+
+当遇到 0 时交换到左侧，并移动 left 和 i；
+当遇到 1 时直接跳过；
+当遇到 2 时交换到右侧，只移动 right，因为左边区域 [0, left-1] 已经处理过，换回来的元素一定是 0 或 1，不需要再检查；而从右边换回来的元素来自未处理区域，可能是 0、1、2 中任意一个，所以必须继续检查当前位置。
+
+```js
+var sortColors = function(nums) {
+    let left = 0;
+    let right = nums.length - 1;
+    let i = 0;
+
+    while (i <= right) {
+        if (nums[i] === 0) {
+            [nums[left], nums[i]] = [nums[i], nums[left]];
+            left++;
+            i++;
+        } else if (nums[i] === 2) {
+            [nums[right], nums[i]] = [nums[i], nums[right]];
+            right--;
+        } else {
+            i++;
+        }
+    }
+};
+```
+
+## 下一个排列
+给定一个整数数组 nums，找出数组的一个下一个排列。
+
+输入：nums = [1,2,3]
+输出：[1,3,2]
+
+思路：从后找降序，找到拐点 i，从后找大数 j，交换 i、j，反转后缀。
+
+```js
+var nextPermutation = function(nums) {
+    let i = nums.length - 2;
+
+    // 找拐点
+    while (i >= 0 && nums[i] >= nums[i + 1]) {
+        i--;
+    }
+
+    if (i >= 0) {
+        let j = nums.length - 1;
+
+        // 找刚好比 nums[i] 大的数
+        while (nums[j] <= nums[i]) {
+            j--;
+        }
+
+        [nums[i], nums[j]] = [nums[j], nums[i]];
+    }
+
+    // 反转后缀
+    let left = i + 1;
+    let right = nums.length - 1;
+
+    while (left < right) {
+        [nums[left], nums[right]] =
+        [nums[right], nums[left]];
+        left++;
+        right--;
+    }
+};
+```
+
+## 寻找重复数
+给定一个包含 n + 1 个整数的数组 nums ，其数字都在 [1, n] 范围内（包括 1 和 n），可知至少存在一个重复的整数。
+假设 nums 只有 一个重复的整数 ，返回 这个重复的数 。
+
+输入：nums = [1,3,4,2,2]
+输出：2
+
+思路：可以将数组看成一个链表，其中下标表示节点，nums[i] 表示节点 i 指向的下一个节点。
+
+由于数组长度为 n+1，而数值范围只有 1~n，根据抽屉原理必然存在重复指向，因此一定形成环。重复数字恰好对应环的入口。
+
+然后使用 Floyd 快慢指针：
+
+第一阶段找到环内相遇点；
+第二阶段一个指针从起点出发，一个从相遇点出发，同速前进；
+再次相遇的位置就是环入口，也就是重复数字。
+
+```js
+var findDuplicate = function(nums) {
+    let slow = nums[0];
+    let fast = nums[0];
+    while (true) {
+        slow = nums[slow];
+        fast = nums[nums[fast]];
+        if (slow === fast) break;
+    }
+    slow = nums[0];
+    while (slow !== fast) {
+        slow = nums[slow];
+        fast = nums[fast];
+    }
+    return slow;
+}

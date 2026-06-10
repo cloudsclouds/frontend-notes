@@ -238,10 +238,9 @@ Hooks 的实现依赖于 React 内部的 Fiber 架构和链表结构。
 当组件渲染时， React 会按顺序遍历 Hooks 链表，读取或更新每个 Hook 的状态
 
 ## 12. useState
+useState：管理组件状态，返回状态值和更新函数（const [count, setCount] = useState(0)）。
 
-  useState：管理组件状态，返回状态值和更新函数（const [count, setCount] = useState(0)）。
-
-```ts
+```jsx
 import { useState } from "react";
 
 function Counter() {
@@ -251,9 +250,7 @@ function Counter() {
 }
 ```
 
-setState 大多数情况下是异步的，比如在 React 合成事件、生命周期方法中调用时，React 会将多个 setState 合并成一次更新，避免频繁重渲染。
-
-这时候，如果直接用当前 state 计算新的值，可能拿到的还是旧值。
+setState 大多数情况下是异步的，比如在 React 合成事件、生命周期方法中调用时，React 会将多个 setState 合并成一次更新，避免频繁重渲染。这时候，如果直接用当前 state 计算新的值，可能拿到的还是旧值。
 
 但在原生事件、setTimeout 回调等非 React 控制的环境中，setState 是同步的，会立即更新 state 并触发冲渲染。
 
@@ -263,7 +260,7 @@ setState 大多数情况下是异步的，比如在 React 合成事件、生命�
 
 
 正确示例：
-```ts
+```jsx
   const [count, setCount] = useState(0);
   const [text, setText] = useState("");
   if (show) {
@@ -272,10 +269,10 @@ setState 大多数情况下是异步的，比如在 React 合成事件、生命�
 ```
 
 ## 13. useEffect
+useEffect：处理副作用（数据请求、DOM操作），可模拟生命周期
+副作用：指在函数执行过程中，除了函数本身的逻辑外，还执行了其他操作，比如数据请求、DOM操作等，这个操作会影响到其他地方，比如数据请求会影响到数据，DOM操作会影响到DOM。
 
-  useEffect：处理副作用（数据请求、DOM操作），可模拟生命周期
-
-```ts
+```jsx
 useEffect(() => {
   // 副作用逻辑
   fetchData();
@@ -336,7 +333,7 @@ useEffect(() => {
 
 1. 保持变量不变：如果你希望某个变量在每次重新渲染时都保持不变，可以使用useRef。例如，你需要保存一个计时器的ID，而不希望它在组件重新渲染时被重置：
 
-```ts
+```jsx
 const timerId = useRef(null);
 useEffect(() => {
     timerId.current = setInterval(() => {
@@ -347,7 +344,7 @@ useEffect(() => {
 
 2. 操作DOM：当你需要直接操作DOM元素时，useRef也非常有用。例如，你需要在组件加载后自动聚焦一个输入框：
 
-```ts
+```jsx
 const inputRef = useRef(null);
 useEffect(() => {
     inputRef.current.focus();
@@ -357,53 +354,105 @@ return ;
 
 ## 15. useMemo 与 useCallback 的区别
 
-useMemo 用于优化组件性能，确保只有在依赖项变化时才重新计算某个值。它可以帮助避免每次渲染时都进行耗时的计算。
+useMemo 用于缓存计算结果，避免重复计算，优化的是组件内部的计算；
 
 useCallback的作用是用于缓存函数的，它确保只有在依赖项变化时才重新创建函数，从而避免子组件不必要的重新渲染。
 
 例如，你有一个计算密集型的函数，它依赖于某些输入数据，你可以使用useMemo来缓存其计算结果：
 
-```ts
-const expensiveCalculation = (num) => {
-    console.log('计算中...');
-    return num * 2;
-};
-const MyComponent = ({ number }) => {
-    const calculatedValue = useMemo(() =>
-        expensiveCalculation(number), [number]);
-    return 计算结果：{calculatedValue};
+```jsx
+function App() {
+  const [count, setCount] = useState(0);
+
+  const total = useMemo(() => {
+    let sum = 0;
+    for(let i = 0; i < 100000000; i++) {
+      sum += i;
+    }
+    return sum;
+  }, []);
+
+  return (
+    <>
+      <h1>{total}</h1>
+      <button onClick={() => setCount(count + 1)}>
+        {count}
+      </button>
+    </>
+  );
 };
 ```
 
 例如，你有一个子组件需要依赖一个回调函数，你可以使用useCallback来优化性能：
 
-```ts
-const MyComponent = ({ onButtonClick }) => {
-    return 点击我;};
-    const ParentComponent = () => {
-        const handleClick = useCallback(() => {
-        console.log('按钮被点击了');
-    }, []);
-/*    如果在这不使用useCallback，
-handleClick函数将在每次ParentComponent重新渲染时被重新创建，
-导致传递给MyComponent的onButtonClick属性变化，
-从而使MyComponent重新渲染。    */
-    return ;
-};
+缓存函数引用。
+```jsx
+const handleClick = useCallback(() => {
+  console.log("click");
+}, []);
 ```
+等价于：
+```jsx
+const handleClick = useMemo(() => {
+  return () => {
+    console.log("click");
+  };
+}, []);
+```
+本质上：useCallback = useMemo缓存函数
 
 ## 16. useMemo vs React.Memo
-
 useMemo 用于缓存计算结果，避免重复计算，优化的是组件内部的计算；React.memo 用于缓存组件渲染，避免不必要的重新渲染，优化的是组件本身的重计算。
 
-```ts
-const expensiveValue = useMemo(() => {
-  return heavyCompute(a, b);
-}, [a, b]);
-const Child = React.memo(function Child({ count }) {
-  console.log("render");
-  return {count};
+React.memo 默认使用浅比较，也就是逐个比较 props 的引用是否发生变化，而不是比较对象内部的内容。对于基本类型比较的是值，对于对象、数组和函数比较的是内存地址。因此如果父组件每次渲染都创建新的对象或函数，那么 React.memo 会失效。因此通常需要配合 useMemo 缓存对象、数组等值，配合 useCallback 缓存函数引用。三者一起使用时，才能真正减少子组件的无意义渲染。
+
+
+子组件：
+```jsx
+const Child = React.memo(({ user, onClick }) => {
+  console.log("Child Render");
+  return (
+    <>
+      <div>{user.name}</div>
+      <button onClick={onClick}>click</button>
+    </>
+  );
 });
+
+function Parent() {
+  const [count, setCount] = useState(0);
+  const user = useMemo(() => {
+    return { name: "Tom" };
+  }, []);
+  const handleClick = useCallback(() => {
+    console.log("click");
+  }, []);
+
+  return (
+    <>
+      <button onClick={() => setCount(count + 1)}>
+        add
+      </button>
+
+      <Child
+        user={user}
+        onClick={handleClick}
+      />
+    </>
+  );
+}
+```
+优化链路：
+```
+Parent重新渲染
+↓
+user引用不变(useMemo)
+↓
+handleClick引用不变(useCallback)
+↓
+React.memo浅比较通过
+↓
+Child跳过渲染
 ```
 
 ## 17. useContext
@@ -581,18 +630,29 @@ function Counter() {
 **作用**：复用组件逻辑、修改组件props、包装组件。 
 
 **实现方式**：
-
+原组件：
 ```js
-function withLogging(WrappedComponent) {
-  return class extends React.Component {
-    componentDidMount() {
-      console.log('Component mounted');
-    }
-    render() {
-      return <WrappedComponent {...this.props} />;
-    }
-  };
+function User() {
+  return <div>User</div>;
 }
+```
+
+HOC:
+```js
+function withLoading(Component) {
+  return function(props) {
+    if(props.loading) {
+      return <div>Loading...</div>;
+    }
+
+    return <Component {...props}/>
+  }
+}
+```
+使用：
+```js
+const UserWithLoading =withLoading(User);
+return <UserWithLoading loading={true}/>;
 ```
 
 ## 28. useImperativeHandle
@@ -645,6 +705,13 @@ React 16.3新增的开发模式，用于检测不符合最佳实践的代码：
   <App />
 </React.StrictMode>
 ```
+
+## 为什么 StrictMode 下 useEffect 会执行两次？
+
+React18 的 StrictMode 在开发环境下会故意模拟一次组件的挂载、卸载和重新挂载流程，也就是 Mount → Unmount → Mount。
+这样可以帮助开发者检查副作用是否安全，特别是 useEffect 中是否正确进行了资源清理，比如事件监听、定时器、订阅或 WebSocket 连接等。
+因此看起来 useEffect 会执行两次，但实际上是组件被重新挂载了两次。
+这个行为只发生在开发环境，生产环境不会出现。
 
 ## 31. 事件循环与React
 
