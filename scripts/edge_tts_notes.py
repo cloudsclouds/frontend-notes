@@ -28,7 +28,7 @@ import edge_tts
 
 
 DEFAULT_VOICE = "zh-CN-YunxiNeural"
-DEFAULT_RATE = "+0%"
+DEFAULT_RATE = "-20%"
 MAX_SEGMENT_CHARS = 2800
 DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/8工程化.md")
 DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/8工程化.mp3")
