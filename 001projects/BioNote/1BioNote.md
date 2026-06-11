@@ -39,6 +39,9 @@ HTTP 轮询实时性差，开销也大；
 SSE 虽然适合服务端单向推送，但它本质是单向的，客户端还要单独发消息。
 WebSocket 建连后是全双工长连接，既适合传文档增量更新，也适合传在线状态、光标、心跳这些实时协作消息。
 
+#### 3.1 WebSocket 如何实现
+WebSocket 通过在 HTTP 握手后升级为 TCP 长连接协议 `Connection: Upgrade` `101 Switching Protocols`，在同一个连接上允许客户端和服务器独立、同时发送数据，从而实现真正的全双工通信。
+
 #### 4. WebSocket 里传的是什么内容？
 - 二进制内容：这是最核心的内容，主要是 Yjs 的 update，也就是文档的增量变更。
 - JSON 文本内容：主要是控制消息和协作状态消息，比如首次同步、重连同步、awareness 在线状态、光标位置、心跳和错误提示；
@@ -194,6 +197,8 @@ yjs 删除本质是墓碑标记，不会立即物理删除。原因是别的客�
 #### 3. SSE 里的粘包、半包怎么处理？SSE 数据不是一条条完整到达的，怎么保证解析正确？
 流式响应的内容，一次收到的 chunk 不一定正好是一条完整消息，可能一条消息被拆成两半，也可能一个 chunk 里拼了多条消息。
 
+response.body 是一个 ReadableStream，代表后端的流式输出。通过 response.getReader() 获取 reader，循环调用 reader.read() 获取 chunk
+
 处理思路就是前端维护一个缓冲区，持续累积数据
 - 每次从流里读到新的 chunk，先用 `TextDecoder` 按流式方式解码。
 - 把新文本追加到 buffer 里。
@@ -215,7 +220,11 @@ yjs 删除本质是墓碑标记，不会立即物理删除。原因是别的客�
 - 对代码块、表格这类结构化内容，尽量等它闭合后再做更稳定的解析
 - 流结束后再做一次完整的最终解析，保证最后展示结果正确
 
-#### 4.2 长文本性能优化
+#### 4.2 Markdown 是用什么做的？
+使用 markdown-it 处理 Markdown、HTML、换行、emoji，把 Markdown 文本 转成 HTML；
+Markdown文本解析成AST，再转换成HTML，最后渲染DOM树
+
+#### 4.3 长文本性能优化
 如果回答内容很长，处理思路主要有三层：
 
 - 不逐 token 直接渲染，而是先缓冲，再按 `requestAnimationFrame` 合批更新，减少频繁 setState；

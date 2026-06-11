@@ -734,3 +734,89 @@ $spacing-unit: 8px;
   }
 }
 ```
+
+## 32. 如何判断元素是否在可视范围内？
+### 32.1 `getBoundingClientRect()`
+`getBoundingClientRect()` 返回元素相对于视口（viewport）的位置和尺寸信息，比如 `top`、`left`、`bottom`、`right`、`width`、`height`。
+
+```js
+function isInViewport(el) {
+  const rect = el.getBoundingClientRect();
+
+  return (
+    rect.top >= 0 &&
+    rect.left >= 0 &&
+    rect.bottom <= window.innerHeight &&
+    rect.right <= window.innerWidth
+  );
+}
+```
+
+如果业务上只要求“部分进入视口就算可见”，判断条件可以放宽，比如只要 `rect.bottom > 0 && rect.top < window.innerHeight`。
+
+优点是简单直接，兼容性好；缺点是如果配合 `scroll` 高频触发，可能会带来较多布局计算。
+
+### 32.2 `IntersectionObserver`
+`IntersectionObserver` 是浏览器提供的可见性监听 API，用来异步观察某个元素是否进入或离开视口，或者进入某个滚动容器。
+
+它比 `scroll + getBoundingClientRect()` 更适合懒加载、曝光统计这类场景，因为它由浏览器内部统一调度，性能更好，不需要我们自己频繁计算。
+
+```js
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) {
+      console.log('元素进入视口');
+    }
+  });
+});
+
+observer.observe(document.querySelector('.box'));
+```
+
+它还支持设置：
+- `root`：指定相对哪个容器观察
+- `rootMargin`：扩展或缩小判断区域
+- `threshold`：元素可见比例达到多少时触发
+
+### 32.3 滚动监听 + `offsetTop` 计算
+传统做法是监听滚动事件，然后通过 `scrollTop`、元素的 `offsetTop`、元素高度、窗口高度来手动计算元素是否进入可视区域。
+
+```js
+window.addEventListener('scroll', () => {
+  const scrollTop = window.scrollY;
+});
+```
+
+这种方式原理不复杂，但在复杂布局里不如前两种稳定。因为 `offsetTop` 是相对于最近的定位祖先元素来算的，嵌套容器多时容易出错，而且高频滚动下性能也一般。
+
+## 33. 在文本上加下划线有哪些实现方式？
+### 33.1 text-decoration: underline
+优点是语义直接、写法简单；缺点是可定制能力相对弱一些。
+
+### 33.2 border-bottom
+通过给元素加下边框，也能实现类似下划线的效果。
+```css
+.text {
+  border-bottom: 1px solid #333;
+}
+```
+它的好处是颜色、粗细、间距更容易控制，但本质上它是边框，不是真正的文字装饰线，所以在换行文本场景下不如 `text-decoration` 自然。
+
+### 33.3 伪元素 `::after`
+如果想做渐变线、自定义长度、动画线条等更复杂的效果，通常会用伪元素。
+
+```css
+.underline {
+  position: relative;
+}
+
+.underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(to right, red, blue);
+}
+```

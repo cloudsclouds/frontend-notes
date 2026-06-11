@@ -510,6 +510,60 @@ replace()：接收两个参数，第一个参数为匹配的内容，第二个�
 3. 重复声明：var声明变量时，可以重复声明变量，后声明的同名变量会覆盖之前声明的变量。const和let在同一块级作用域内不允许重复声明变量。
 4. 初始值设置： 在变量声明时，var和let可以不用设置初始值。而const声明变量必须设置初始值
 
+### 13.1 `const` 定义对象后，属性值还能改吗？
+可以改。
+
+```js
+const object = {
+  a: 1,
+  b: 2
+};
+
+object.a = 4;
+console.log(object.a); // 4
+```
+
+原因是 `const` 只保证变量引用不变，也就是不能把 `object` 重新赋值成别的对象：
+
+```js
+const object = { a: 1 };
+object = { a: 2 }; // 报错
+```
+
+但它不保证对象内部属性不可变，所以 `object.a = 4` 是允许的。
+
+如果不希望对象属性被修改，常见有两种方式：
+
+1. `Object.freeze()`
+冻结对象后，已有属性不能修改、不能新增、也不能删除。
+
+```js
+const object = Object.freeze({
+  a: 1,
+  b: 2
+});
+
+object.a = 4; // 无效，严格模式下会报错
+```
+
+2. `Object.defineProperty()`
+如果只想限制某个属性不能被改，可以把它的 `writable` 设为 `false`。
+
+```js
+const object = {
+  a: 1,
+  b: 2
+};
+
+Object.defineProperty(object, 'a', {
+  writable: false
+});
+
+object.a = 4; // 无效，严格模式下会报错
+```
+
+补充一点：`Object.freeze()` 默认是浅冻结。如果对象里还有嵌套对象，内部层级仍然可以被修改，想彻底不可变需要递归冻结。
+
 ## 14. Rest 剩余参数 vs 扩展运算符
 Rest 剩余参数：把调用这个函数时传入的 所有参数收集成一个数组 args
 
