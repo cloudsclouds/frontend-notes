@@ -76,6 +76,11 @@ Vue2 的局限性在于：
 - 不能直接监听 **数组下标修改**。
 - 初始化阶段需要 **递归遍历对象**，性能开销较大。
 
+Vue2 中能直接新增对象属性吗？
+不能。
+Vue2 中不能直接新增对象属性，因为 `Object.defineProperty` 不能监听属性新增，不能保证响应式。
+需要使用 `Vue.set` 方法来新增属性。
+
 ### 3.2 Vue3 响应式原理
 Vue3 使用 **Proxy** 替代了 `Object.defineProperty`，可以对整个对象做更完整的代理。使用 effect 代替 watcher。
 
@@ -106,14 +111,17 @@ Vue 的双向绑定本质上是：**响应式系统 + 事件监听**。
 4. 通过事件监听把视图输入同步回数据。
 
 ### 3.4 ref vs reactive
+ref 和reactive 都是 Vue3 用来创建响应式数据的 API
 
-- `ref` 用于创建响应式数据，既可以包基本类型，也可以包对象类型。其中，对象类型内部本质上也是调用了`reactive`函数，也会转成响应式对象。
+- `ref` 
+ - 可以接收基本数据类型，也可以接收对象类型。
+ - ref 底层本质还是调用了 reactive，会使用 `Object.defineProperty` 的 `getter/setter` 拦截 `.value`，把传入的值包裹成一个 {value: 数据} 的对象，所以使用时必须通过 `.value` 取值和修改。
+ - ref 解构后依然保持响应式。
 
-- `ref` 的本质是一个带 `value` 属性的响应式对象；通`Object.defineProperty` 的 `getter/setter` 拦截 `.value`。
-
-- `reactive` 用于创建对象类型的响应式数据，本质上是通过 `Proxy` 返回一个代理对象。
-
-- `reactive` 支持深层次响应式，重新赋值一个新对象时会失去响应式，需要用 `Object.assign` 做整体替换；解构或传参会丢失响应式；
+- `reactive` 
+  - 用于创建对象类型的响应式数据。
+  - 本质上是通过 `Proxy` 返回一个代理对象，支持深层次响应式。
+  - reactive直接解构会丢失响应式，需要用 toRefs 转换。
 
 ### 3.5 `toRef` 与 `toRefs`
 
@@ -312,6 +320,8 @@ export default {
   }
 }
 ```
+执行顺序：
+beforeEach -> beforeEnter -> 组件内守卫 -> afterEach
 
 ### 12.1 路由监听
 
@@ -342,6 +352,30 @@ history 模式
 - 基于 History API
 - 更适合 SEO
 - 刷新或直接访问深层路径时，需要服务器做兜底配置，否则可能 404
+
+### 12.4 路由如何传参？
+1. Query 参数
+- 通过 `query` 参数传递
+- 在路由配置中添加 `query` 参数
+- 在组件中通过 `this.$route.query` 获取参数
+```js
+{
+  path: '/user',
+  component: User,
+  props: (route) => ({ query: route.query })
+}
+```
+2. Params 参数
+- 通过 `params` 参数传递
+- 在路由配置中添加 `params` 参数
+- 在组件中通过 `this.$route.params` 获取参数
+```js
+{
+  path: '/user/:id',
+  component: User,
+  props: (route) => ({ id: route.params.id })
+}
+```
 
 ## 13. 状态管理与全局数据
 
@@ -417,9 +451,22 @@ Vue2 到 Vue3 的迁移通常采用渐进式方案：
 ## 17. 渐进式框架
 渐进式框架的核心理念是允许开发者逐步增强或扩展应用程序的功能，而不是一次性提供一个全功能、一体化的解决方案。
 
-## 18 如何在 Vue 应用中进行表单处理和验证
+## 18. 如何在 Vue 应用中进行表单处理和验证
 - 表单处理：可以使用 v - model 进行双向绑定。
 - 表单验证：
   - 使用第三方库：如 VeeValidate 或 Vue - Form - Validation。
   - 手动编写验证逻辑：在提交前检查表单状态。
   - 利用 Vue 的计算属性和自定义指令来实现表单验证。
+
+## 19. Vue 中 h 函数（渲染函数）
+h 函数是 Vue 中用于创建虚拟 DOM 的函数。
+```js
+const vnode = h('div', {
+  class: 'container',
+  style: {
+    color: 'red'
+  }
+}, 'Hello, Vue!')
+
+console.log(vnode)
+```

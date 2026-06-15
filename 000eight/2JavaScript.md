@@ -1,6 +1,9 @@
 # JavaScript
 ## 1. JS 事件循环
-JS 事件循环是单线程运行时的任务调度机制，分为同步任务和异步任务。同步任务直接在主线程执行，异步任务会进入任务队列。主线程执行完同步任务后，会从任务队列取异步任务执行，异步任务又分宏任务和微任务，微任务优先级更高，会先清空微任务队列，再执行一个宏任务，最后浏览器更新渲染/重新绘制页面，如此循环。常见微任务有 Promise.then、async/await，宏任务有 setTimeout、DOM 事件、AJAX。
+JS 事件循环是单线程运行时的任务调度机制，分为同步任务和异步任务。
+同步任务直接放入执行栈在主线程执行，异步任务会进入任务队列。
+主线程执行完同步任务后，会从任务队列取异步任务执行，异步任务又分宏任务和微任务，微任务优先级更高，会先清空微任务队列，再执行一个宏任务，最后浏览器更新渲染，重新绘制页面，如此循环。
+常见微任务有 Promise.then、async/await，宏任务有 setTimeout、DOM 事件、AJAX 等。
 
 - 执行栈（Call Stack）用于存储同步任务的执行上下文，遵循后进先出。
 - 任务队列（Task Queue）用于存储异步任务回调，又分宏任务队列和微任务队列。
@@ -584,7 +587,7 @@ Rest 剩余参数：把调用这个函数时传入的 所有参数收集成一�
 8. 类语法 - class 关键字：
 JavaScript 本身是基于原型链实现继承的，class 是 ES6 引入的一种语法糖，本质还是基于 prototype。
 相比原型链，class 写法更清晰，并且提供了更接近传统面向对象的语法，比如 constructor、extends、super 等。
-同时 class 还有一些行为差异，比如不会提升、必须通过 new 调用、方法默认不可枚举，并且默认运行在严格模式下。
+同时 class 还有一些行为差异，比如不存在变量提升、必须通过 new 调用，并且默认运行在严格模式下。
 9. 模块化 - import/export
 10. Promise - 异步编程解决方案
 11. Symbol/Map/Set - 新的数据类型
@@ -775,11 +778,24 @@ for...of 用于遍历可迭代对象，返回的是元素值，底层基于 Symb
 ## 23. Set、Map、Object、WeakMap 的区别
 - Set是类似数组的一种的数据结构，类似数组的一种集合，但在Set中没有重复的值。
 
-- Map 是更强的键值对结构，key 可以是任意类型，并且支持 size 和遍历；
+- Map 是更强的键值对结构，key 可以是任意类型；Map 支持遍历 `for(const [k,v] of map)`，并且获取长度方式`size` 更简洁；
 
-- Object 是最基础的键值对结构，但 key 只能是字符串或 Symbol；
+- Object 是最基础的键值对结构，但 key 只能是字符串或 Symbol； Object 遍历 `Object.keys()` `Object.values()` `Object.entries()`，获取长度 `Object.keys(obj).length`；
 
 - WeakMap 是一种特殊的 Map，key 必须是对象，并且是弱引用，当对象没有其他引用时会被垃圾回收，常用于存储私有数据或避免内存泄漏。
+
+## 23.1 读代码
+```js
+const obj = {
+  1:'a',
+  '1':'b'
+}
+console.log(obj[1]) // 'b'
+console.log(obj["1"]) // 'b'
+console.log(obj.1) // Error
+```
+Object 的 key 会自动转字符串，所以 `1` 和 `'1'` 是同一个 key。
+
 
 ## 24. class 和 function 构造函数的区别是什么？
 class 本质上是 function 的语法糖。
@@ -799,3 +815,39 @@ function 不会自动开启。
 4. 提升行为
 函数声明：foo()，unction foo(){} 可以；
 class：new Person()，在声明前访问：ReferenceError 存在暂时性死区。
+
+## 25. JS 怎么实现私有属性？
+1. ES2022 的私有字段，在属性名前加 # 符号。
+```js
+class Person {
+  #name;
+  constructor(name) {
+    this.#name = name;
+  }
+}
+```
+2. 闭包实现私有属性：
+```js
+function Person(name){
+  let _name = name
+
+  this.getName = () => _name
+  this.setName = (name) => _name = name
+}
+```
+
+## 26. 高阶函数是什么？
+满足以下任意一个条件：接收函数作为参数 或者 返回一个函数。
+例如：
+```js
+function fn(callback){
+  callback()
+  }
+
+function add(x){
+  return function(y){
+    return x+y
+  }
+}
+```
+常见高阶函数：map、filter、reduce、sort、防抖、节流、React HOC 都是高阶函数思想。

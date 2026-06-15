@@ -67,6 +67,26 @@ HTML 语义化的核心是用合适的标签表达合适的内容结构，而不
 
 比如头部用 `header`，导航用 `nav`，主体内容用 `main`，文章用 `article`，分区用 `section`，页脚用 `footer`。
 
+## 6.1 如何实现 SEO？
+SEO 的核心目标是让搜索引擎能够正确抓取和理解页面内容，提高页面在搜索引擎中的排名。
+1. 服务端渲染 SSR
+- 例如 Vue 的 Nuxt、React 的 Next.js。
+- 服务器直接返回完整 HTML，搜索引擎无需执行 JavaScript 就能获取页面内容。
+
+2. 静态生成 SSG
+- 构建阶段提前生成 HTML 页面，适合博客、官网等内容变化较少的网站。
+
+3. 完善 Meta 信息
+- 设置 SEO 相关的描述和关键词 `description`
+
+4. 语义化标签
+- 头部用 `header`，导航用 `nav`，主体内容用 `main`，文章用 `article`，分区用 `section`，页脚用 `footer`。
+
+5. 生成 sitemap 网站地图和 robots.txt
+- sitemap 网站地图：告诉搜索引擎页面有哪些内容
+- robots.txt：告诉搜索引擎哪些页面可以抓取，哪些页面不能抓取
+帮助搜索引擎正确抓取页面，提高页面在搜索引擎中的排名。
+
 ## 7. HTML5 新增了哪些常用能力？
 
 - 语义化标签，比如 `header`、`nav`、`article`

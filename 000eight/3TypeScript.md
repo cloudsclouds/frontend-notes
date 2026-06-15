@@ -256,3 +256,27 @@ function log(target: unknown, key: string, descriptor: PropertyDescriptor) {
   return descriptor;
 }
 ```
+
+## 15. keyof 是做什么的？
+keyof 是 TypeScript 中的一个操作符，获取对象类型所有属性名组成的联合类型。
+
+```ts
+type Person = {
+  name: string;
+  age: number;
+}
+
+type PersonKeys = keyof Person; // "name" | "age"
+```
+
+## 16. 说说 TypeScript 中的 Pick？
+Pick 是 TypeScript 中的一个内置类型，用于从另一个类型中选择一组属性。
+
+```ts
+type Person = {
+  name: string;
+  age: number;
+}
+
+type PersonName = Pick<Person, "name">; // { name: string }
+```
