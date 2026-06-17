@@ -1,3 +1,5 @@
+螺旋矩阵、二分查找：left <= right 
+
 # 数组
 ## 1. 合并两个有序数组 (T3)
 ```js
@@ -280,7 +282,6 @@ var groupAnagrams = function(strs) {
 }
 ```
 
-
 ## 10. 最长连续序列
 给定一个未排序的整数数组 nums ，找出数字连续的最长序列（不要求序列元素在原数组中连续）的长度。
 示例 1：
@@ -307,7 +308,6 @@ var longestConsecutive = function(nums) {
     return maxLen;
 }
 ```
-
 
 # 双指针
 ## 11. 移动零 (T42)
@@ -390,9 +390,7 @@ var trap = function(height) {
 };
 ```
 
-
 # 贪心
-
 ## 14. 买卖股票的最佳时机 (T11)
 ```js
 var maxProfit = function(prices) {
@@ -570,7 +568,6 @@ var maxProduct = function(nums) {
 }
 ```
 
-
 ## 背包问题
 ### 0-1背包
 ```
@@ -610,7 +607,6 @@ var numSquares = function(n) {
     return dp[n];
 }
 ```
-
 
 ## 21. 零钱兑换 (T28)
 给定不同面额的硬币 coins 和一个总金额 amount。编写一个函数来计算可以凑成总金额所需的最少的硬币个数。如果没有任何一种硬币组合能组成总金额，返回 -1。你可以认为每种硬币的数量是无限的。
@@ -1795,9 +1791,7 @@ var maxAreaOfIsland = function(grid) {
 }
 ```
 
-
 # 其他
-
 ## 只出现一次的数字
 给你一个 非空 整数数组 nums ，除了某个元素只出现一次以外，其余每个元素均出现两次。找出那个只出现了一次的元素。
  
@@ -1838,7 +1832,7 @@ var majorityElement = function(nums) {
 };
 ```
 
-## 颜色分类s
+## 颜色分类
 给定一个包含红色、白色和蓝色、共 n 个元素的数组 nums ，原地对它们进行排序，使得相同颜色的元素相邻，并按照红色、白色、蓝色顺序排列。
 我们使用整数 0、 1 和 2 分别表示红色、白色和蓝色。
 必须在不使用库的sort函数的情况下解决这个问题。
