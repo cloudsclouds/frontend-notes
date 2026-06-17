@@ -17,9 +17,9 @@
 
 ## 2. 行内元素、块级元素、`inline-block` 有什么区别？
 
-- 块级元素默认会独占一行，宽度通常会撑满父容器，可以设置宽高，也可以设置 `margin` 和 `padding`。像 `div`、`p`、`ul` 这些都比较典型。
-- 行内元素默认不会换行，宽高由内容决定，通常不能直接设置宽高，像 `span`、`a` 这些比较典型。
-- `inline-block` 兼具两者特点：它默认不换行，但又可以设置宽高，所以很适合按钮横向排列、图片和文字同行对齐这种场景。
+- 块级元素默认会独占一行，宽度通常会撑满父容器，可以设置宽高，也可以设置 `margin` 和 `padding`。如：`div`、`p`、`ul`
+- 行内元素默认不会换行，宽高由内容决定，通常不能直接设置宽高，如：`span`、`a`
+- `inline-block` 兼具两者特点：它默认不换行，但又可以设置宽高，适合按钮横向排列、图片和文字同行对齐这种场景。
 
 ```css
 .btn {
@@ -34,10 +34,9 @@ img {
 ```
 
 ## 3. `src` 和 `href` 有什么区别？
-
-- `src` 更强调“把资源真正加载进来并参与当前文档”，比如 `<img>`、`<script>`、`<iframe>`。
-- `href` 更强调“建立当前文档和外部资源之间的关联”，比如 `<a>` 和 `<link>`。它表示页面和某个资源之间有链接关系。
-- 浏览器处理它们的方式也不一样。`<script src>` 在默认情况下会阻塞解析，而 `<link href>` 不阻塞 DOM 解析，但会影响渲染。
+- `src` 强调“把资源真正加载进来并参与当前文档”，比如 `<img>`、`<script>`、`<iframe>`。
+- `href` 强调“建立当前文档和外部资源之间的关联”，比如 `<a>` 和 `<link>`。它表示页面和某个资源之间有链接关系。
+- `<script src>` 在默认情况下会阻塞解析，而 `<link href>` 不阻塞 DOM 解析，但会影响渲染。
 
 ## 4. `defer` 和 `async` 有什么区别？
 如果 `<script>` 没有加 `defer` 或 `async`，浏览器解析到它时会暂停 HTML 解析，先下载并执行脚本。
@@ -46,12 +45,11 @@ img {
 - `defer`：不会阻塞 HTML 解析，等 DOM 解析完成后再按顺序执行
 - `async`：不会阻塞 HTML 解析，但下载完成就立即执行，不保证顺序
 
-所以如果脚本之间有依赖，优先考虑 `defer`；如果是独立脚本，比如埋点、广告、统计，更适合 `async`。
+如果脚本之间有依赖，优先考虑 `defer`；如果是独立脚本，如埋点、广告、统计，更适合 `async`。
 
 ## 5. `preload` 和 `prefetch` 有什么区别？
-
-- `preload` 是为当前页面马上要用到的关键资源做预加载，它优先级高，目标是优化当前页面首屏。
-- `prefetch` 是为用户接下来可能访问的资源提前准备，它优先级更低，通常在浏览器空闲时加载，目标是优化下一跳体验。
+- `preload` 是为当前页面马上要用到的关键资源做预加载，优先级高，目标是优化当前页面首屏。
+- `prefetch` 是为用户接下来可能访问的资源提前准备，优先级更低，通常在浏览器空闲时加载，目标是优化下一跳体验。
 
 ```html
 <link rel="preload" href="/main.css" as="style">
@@ -59,13 +57,11 @@ img {
 ```
 
 ## 6. HTML 语义化怎么理解？
-HTML 语义化的核心是用合适的标签表达合适的内容结构，而不是只为了样式去堆 `div`。
+HTML 语义化是用合适的标签表达合适的内容结构，而不是只为了样式去堆 `div`。
 
 - 对 SEO 更友好，搜索引擎更容易理解页面结构
 - 对可访问性更友好，读屏软件更容易识别内容层级
 - 对开发维护更友好，代码结构更清晰
-
-比如头部用 `header`，导航用 `nav`，主体内容用 `main`，文章用 `article`，分区用 `section`，页脚用 `footer`。
 
 ## 6.1 如何实现 SEO？
 SEO 的核心目标是让搜索引擎能够正确抓取和理解页面内容，提高页面在搜索引擎中的排名。
@@ -88,21 +84,18 @@ SEO 的核心目标是让搜索引擎能够正确抓取和理解页面内容，�
 帮助搜索引擎正确抓取页面，提高页面在搜索引擎中的排名。
 
 ## 7. HTML5 新增了哪些常用能力？
-
-- 语义化标签，比如 `header`、`nav`、`article`
-- 多媒体标签，比如 `audio`、`video`
-- 本地存储，比如 `localStorage`、`sessionStorage`
-- 新的 DOM 查询方式，比如 `querySelector`
-- 后台线程能力，比如 `Web Worker`
+- 语义化标签，如：`header`、`nav`、`article`
+- 多媒体标签，如：`audio`、`video`
+- 本地存储，如：`localStorage`、`sessionStorage`
+- 新的 DOM 查询方式，如：`querySelector`
+- 后台线程能力，如：`Web Worker`
 - 地理位置、通知等浏览器能力
 
 ## 8. `Web Worker` 怎么理解？
-
 `Web Worker` 是浏览器提供的多线程能力，允许把耗时 JS 逻辑放到后台线程执行，避免阻塞主线程。
-
 主线程负责 UI 渲染和 DOM 操作，Worker 线程适合做计算密集型任务，比如大数据处理、图像处理、复杂解析。
-
-它的限制也很明确：不能直接操作 DOM，也不能直接访问 `window`，通常通过 `postMessage` 和主线程通信。
+通常通过 `postMessage` 和主线程通信，`onmessage` 接收数据，`onerror` 处理错误。
+它的限制也很明确：不能直接操作 DOM，也不能直接访问 `window`；数据通信是拷贝，大数据会有性能损耗；有同源限制，且会增加线程开销，不适合大量创建。
 
 ```js
 // main.js
@@ -126,17 +119,17 @@ Flex 是一维布局，核心是沿主轴分配空间，适合做导航栏、按
 
 父容器常用属性有：
 - `flex-direction`：决定主轴方向：`row`、`row-reverse`、`column`、`column-reverse`
-- `justify-content`：主轴对齐：`flex-start`、`flex-end`、`center`、`space-between`、`space-around`、`space-evenly`
-- `align-items`：交叉轴对齐：`flex-start`、`flex-end`、`center`、`baseline`、`stretch`
-- `flex-wrap`：是否换行
+- `justify-content`：决定主轴对齐方式：`flex-start`、`flex-end`、`center`、`space-between`、`space-around`、`space-evenly`
+- `align-items`：决定交叉轴对齐方式：`flex-start`、`flex-end`、`center`、`baseline`、`stretch`
+- `flex-wrap`：决定是否换行
 
 子元素常用属性有：
 - `flex-grow`：当父容器有剩余空间时，子元素如何分配剩余空间
-- `flex-shrink`：当父容器空间不足时，子元素如何缩小
+- `flex-shrink`：当父容器空间不足时，子元素针对超出空间如何缩小
 - `flex-basis`：子元素在分配空间前的基础尺寸
 - `align-self`：单独覆盖对齐方式
 
-面试里经常会追问 `flex: 1` vs `flex: auto`：
+## 10.1 `flex: 1` vs `flex: auto`
 `flex: 1` 等价于 `flex: 1 1 0%`，表示可以放大、可以缩小、基础尺寸按 0 算。
 `flex: auto` 等价于 `flex: 1 1 auto`，表示可以放大、可以缩小、基础尺寸按内容算。
 
@@ -163,7 +156,6 @@ Flex 是一维布局，核心是沿主轴分配空间，适合做导航栏、按
 ```
 
 ## 11. Grid 布局和 Flex 有什么区别？
-
 Flex 是一维布局，适合控制一行或者一列里的排列关系。
 Grid 是二维布局，适合同时控制行和列，更适合页面级布局、复杂网格、仪表盘、画廊这类场景。
 
@@ -198,44 +190,141 @@ Grid 是二维布局，适合同时控制行和列，更适合页面级布局、
 ```
 
 ## 12. 两栏 / 三栏布局怎么实现？
-
 两栏布局通常是左侧固定、右侧自适应。可以使用以下方式：
 - 浮动 + `margin-left`：左侧元素浮动，右侧元素使用 `margin-left` 撑开
 - 浮动 + BFC：左侧元素浮动，右侧元素使用 BFC 撑开
 - Flex：使用 Flex 布局，左侧元素固定宽度，右侧元素 flex: 1
-- 绝对定位：左侧元素绝对定位，右侧元素使用 `left` 属性撑开
+- 绝对定位：父元素相对定位，左侧元素绝对定位，右侧元素通过 `margin-left` 或 `left` + `right` 留出空间
 
 三栏布局通常是左右固定、中间自适应。可以用：
 - 浮动 + 中间 `margin`：左右元素浮动，中间元素使用 `margin` 撑开
-- 绝对定位：左侧元素绝对定位，右侧元素使用 `left` 属性撑开
-- Flex：使用 Flex 布局，左侧元素固定宽度，右侧元素 flex: 1
-- Grid：使用 Grid 布局，左侧元素固定宽度，右侧元素宽度自适应
+- Flex：使用 Flex 布局，左侧、右侧元素固定宽度，中间元素 flex: 1
+- Grid：使用 Grid 布局，左侧、右侧元素固定宽度，中间元素宽度自适应
+- 绝对定位：父元素相对定位，左右元素绝对定位，中间元素通过 `margin` 留出左右空间，或者直接用 `left` 和 `right` 同时限定
+
+
+```css
+/* 两栏：float + margin-left */
+.two-col-float {
+  overflow: hidden; /* 让父元素包住浮动子元素 */
+}
+.two-col-float .left {
+  float: left;
+  width: 200px;
+}
+.two-col-float .right {
+  margin-left: 200px;
+}
+```
+
+```css
+/* 两栏：float + BFC */
+.two-col-bfc .left {
+  float: left;
+  width: 200px;
+}
+.two-col-bfc .right {
+  overflow: hidden; /* 触发 BFC，避免与浮动区域重叠 */
+}
+```
 
 ```css
 /* 两栏：flex */
-.outer {
+.two-col-flex {
   display: flex;
 }
-.left {
+.two-col-flex .left {
   width: 200px;
 }
-.right {
+.two-col-flex .right {
   flex: 1;
+  min-width: 0;
+}
+```
+
+```css
+/* 两栏：absolute */
+.two-col-abs {
+  position: relative;
+  min-height: 120px;
+}
+.two-col-abs .left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+}
+.two-col-abs .right {
+  margin-left: 200px;
+}
+```
+
+```css
+/* 三栏：float + margin */
+.three-col-float {
+  overflow: hidden;
+}
+.three-col-float .left {
+  float: left;
+  width: 200px;
+}
+.three-col-float .right {
+  float: right;
+  width: 200px;
+}
+.three-col-float .center {
+  margin: 0 200px;
+}
+```
+
+```css
+/* 三栏：absolute */
+.three-col-abs {
+  position: relative;
+  min-height: 120px;
+}
+.three-col-abs .left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+}
+.three-col-abs .right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 200px;
+}
+.three-col-abs .center {
+  margin: 0 200px;
+}
+```
+
+```css
+/* 三栏：flex */
+.three-col-flex {
+  display: flex;
+}
+.three-col-flex .left,
+.three-col-flex .right {
+  width: 200px;
+}
+.three-col-flex .center {
+  flex: 1;
+  min-width: 0;
 }
 ```
 
 ```css
 /* 三栏：grid */
-.container {
+.three-col-grid {
   display: grid;
-  grid-template-columns: 200px auto 200px;
+  grid-template-columns: 200px 1fr 200px;
 }
 ```
 
 ## 13. 浮动是什么？怎么清除浮动？
-
 浮动会让元素脱离正常文档流，并向左或向右移动，直到碰到父容器边缘或者其他浮动元素。
-
 最大的问题是父元素高度塌陷，因为子元素浮动后，父元素可能感知不到它的高度，从而导致父元素高度塌陷。
 
 清除浮动的常见方式有两个：
@@ -251,8 +340,7 @@ Grid 是二维布局，适合同时控制行和列，更适合页面级布局、
 ```
 
 ## 14. BFC 是什么？有什么用？
-
-BFC 全称是块级格式化上下文，可以把它理解成一个独立的布局环境。BFC 内部的元素不会影响外部，外部元素也不会轻易干扰内部布局。
+BFC 是块级格式化上下文，可以把它理解成一个独立的布局环境。BFC 内部的元素不会影响外部，外部元素也不会轻易干扰内部布局。
 
 它的作用有：
 - 清除浮动导致的父元素高度塌陷
@@ -266,7 +354,7 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 - `float` 不为 `none`
 
 ## 15. 元素怎么水平垂直居中？
-- 如果是单行文本垂直居中，也可以用 `line-height` 等于高度。
+- 如果是单行文本垂直居中，可以用 `line-height` 等于高度。
 - 如果是兼容性更强的经典方案，可以用 `position + transform`。
 - 最推荐使用 Flex 布局：
 `display: flex; justify-content: center; align-items: center;`
@@ -296,7 +384,6 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 ```
 
 ## 16. 盒模型怎么理解？
-
 所有 HTML 元素都可以看成一个盒子，盒模型由四部分组成：content、padding、border、margin。
 默认是 `content-box`，也就是 `width` 和 `height` 只算内容区，不包含 `padding` 和 `border`。
 如果设置成 `border-box`，那 `width` 和 `height` 就包含内容区、内边距和边框。
@@ -388,7 +475,6 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 ```
 
 ## 19. 隐藏元素有哪些方式？区别是什么？
-
 常见方式有：
 - `display: none`
 - `visibility: hidden`
@@ -402,7 +488,6 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 - `opacity: 0`：占空间，也可参与动画，且通常还能响应事件
 
 ## 20. `z-index` 为什么有时候不生效？
-
 最常见原因有两个：
 - 元素没有定位，`z-index` 只对定位元素生效
 - 父元素形成了新的堆叠上下文，子元素再高也只能在父级上下文内部比较
@@ -425,7 +510,6 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 ```
 
 ## 21. `display` 和 `position` 常见值有哪些？
-
 `display` 常见值：
 - `none`
 - `block`
@@ -450,16 +534,13 @@ BFC 全称是块级格式化上下文，可以把它理解成一个独立的布�
 ```
 
 ## 22. `requestAnimationFrame` 和 `setTimeout` 有什么区别？
-
 - `requestAnimationFrame` 的回调会在浏览器下一帧重绘前执行，天然和屏幕刷新节奏同步，所以更适合动画。
-
 - `setTimeout` 是基于事件循环调度，不和渲染节奏绑定，主线程忙时可能延迟执行，因此更容易掉帧或产生抖动。
 
 ## 23. 常见 CSS 单位有哪些？`px`、`em`、`rem`、`vw/vh` 的区别？
-
-- `px` 是绝对单位，最常见。
+- `px` 是绝对单位。
 - `em` 相对于当前元素自身的字体大小，容易受嵌套影响。
-- `rem` 相对于根元素 `html` 的字体大小，更适合做全局响应式尺寸体系。
+- `rem` 相对于根元素 `html` 的字体大小，适合做全局响应式尺寸体系。
 - `vw`、`vh` 相对于视口宽高，适合响应式布局和移动端适配。
 
 ```css
@@ -488,6 +569,10 @@ window.addEventListener('resize', setRem);
 setRem();
 ```
 
+## 23.1 单行 / 多行文本溢出怎么处理？
+单行文本使用 `overflow: hidden; white-space: nowrap; text-overflow: ellipsis;` 实现；
+多行文本使用 `display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;` 实现。
+
 ```css
 /* 单行 / 多行文本溢出 */
 .single-line {
@@ -505,19 +590,15 @@ setRem();
 ```
 
 ## 24. CSS 可继承属性和不可继承属性有哪些？
-
 - 文本相关属性比较容易继承，比如 `color`、`font-size`、`font-family`、`line-height`。
 - 盒模型、布局、定位相关通常不继承，比如 `width`、`height`、`margin`、`padding`、`border`、`position`、`display`。
 
 ## 25. CSS 变量有什么优势？
-
-CSS 变量，也叫自定义属性，最大的价值有几个：
+CSS 变量，也叫自定义属性：
 - 便于统一主题管理
 - 支持作用域覆盖
 - 支持运行时动态修改
 - 可以和 `calc()` 组合使用
-
-它非常适合做 Design Token，比如颜色、圆角、间距、字号体系。
 
 ```css
 :root {
@@ -539,10 +620,9 @@ document.documentElement.style.setProperty('--primary-color', '#ff4d4f');
 
 ## 26. 为什么要初始化 CSS？
 因为不同浏览器对很多标签有不同的默认样式，如果不做初始化，页面在不同浏览器里可能会出现间距、字号、列表样式不一致的问题。
-所以初始化样式的目标是把这些默认差异先抹平，再在统一基础上写业务样式。
+初始化样式的目标是把这些默认差异先抹平，再在统一基础上写业务样式。
 
 ## 27. CSS Sprites 原理和优缺点是什么？
-
 CSS Sprites 就是把多个小图合并成一张大图，再通过 `background-position` 精确定位显示其中一部分。
 
 优点：
@@ -555,12 +635,11 @@ CSS Sprites 就是把多个小图合并成一张大图，再通过 `background-p
 - 对响应式和高清屏支持不太友好
 
 ## 28. 响应式设计怎么理解？移动端适配有哪些方案？
-
 响应式设计的核心是让页面根据不同设备尺寸自动调整布局和展示方式。
 
 关键点通常有：
 - 媒体查询 `@media`
-- Flex / Grid
+- Flex 布局 / Grid 布局
 - 视口单位 `viewport`
 - `rem` / `vw` 适配
 
@@ -599,11 +678,8 @@ CSS Sprites 就是把多个小图合并成一张大图，再通过 `background-p
 ```
 
 ## 29. 回流、重绘、合成分别是什么？怎么做 CSS 性能优化？
-
 回流，也叫重排，是几何属性变化后浏览器重新计算布局，比如宽高、位置、盒模型变化。
-
 重绘是外观属性变化，比如颜色、背景、阴影变化，但不影响布局。
-
 合成是图层已经准备好后做最终合并，通常像 `transform`、`opacity` 这种更容易只走合成层，性能最好。
 
 优化原则一般是：
@@ -644,7 +720,6 @@ document.getElementById('list').appendChild(fragment);
 ```
 
 ## 30. `transition` 和 `animation` 有什么区别？
-
 - `transition` 适合两个状态之间的平滑过渡，比如 hover、展开收起、显隐切换。
 - `animation` 适合更复杂的关键帧动画，比如循环 loading、呼吸灯、入场动画。
 
@@ -724,7 +799,6 @@ document.getElementById('list').appendChild(fragment);
 ```
 
 ## 31. CSS 预处理器和 CSS 工程化怎么理解？
-
 CSS 预处理器像 Sass、Less，主要是给 CSS 增强编程能力，比如变量、嵌套、混入、函数、模块拆分。
 
 在现代工程里，还会结合：
@@ -778,8 +852,7 @@ function isInViewport(el) {
 
 ### 32.2 `IntersectionObserver`
 `IntersectionObserver` 是浏览器提供的可见性监听 API，用来异步观察某个元素是否进入或离开视口，或者进入某个滚动容器。
-
-它比 `scroll + getBoundingClientRect()` 更适合懒加载、曝光统计这类场景，因为它由浏览器内部统一调度，性能更好，不需要我们自己频繁计算。
+它比 `scroll + getBoundingClientRect()` 更适合懒加载、曝光统计这类场景，因为它由浏览器内部统一调度，性能更好，不需要自己频繁计算。
 
 ```js
 const observer = new IntersectionObserver((entries) => {
@@ -807,7 +880,7 @@ window.addEventListener('scroll', () => {
 });
 ```
 
-这种方式原理不复杂，但在复杂布局里不如前两种稳定。因为 `offsetTop` 是相对于最近的定位祖先元素来算的，嵌套容器多时容易出错，而且高频滚动下性能也一般。
+这种方式在复杂布局里不如前两种稳定。因为 `offsetTop` 是相对于最近的定位祖先元素来算的，嵌套容器多时容易出错，而且高频滚动下性能也一般。
 
 ## 33. 在文本上加下划线有哪些实现方式？
 ### 33.1 text-decoration: underline

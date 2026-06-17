@@ -2,35 +2,27 @@
 
 ## 1. Vue 的生命周期
 Vue 的生命周期分为创建、挂载、更新、销毁四个阶段。
-
-创建阶段有 beforeCreate 和 created，beforeCreate 时 data 和 methods 还未初始化，created 时已初始化，可以访问响应式数据，但是页面 DOM 还没有生成。
-
-挂载阶段有 beforeMount 和 mounted，beforeMount 模板已经编译成虚拟 DOM，但真实 DOM 还没有挂载到页面；mounted 是 DOM 挂载完成，适合操作 DOM。在 `mounted` 中发请求，主要是因为此时组件已经完成挂载，DOM 已可用，适合进行依赖页面状态的初始化操作。
-
-更新阶段有 beforeUpdate 和 updated，beforeUpdate 是数据更新前，updated 是 DOM 更新后。
-
-销毁阶段有 beforeDestroy 和 destroyed，beforeDestroy 可清除定时器，移除事件监听，destroyed 时组件完全销毁。
+- 创建阶段有 beforeCreate 和 created，beforeCreate 时 data 和 methods 还未初始化，created 时已初始化，可以访问响应式数据，但是页面 DOM 还没有生成。
+- 挂载阶段有 beforeMount 和 mounted，beforeMount 模板已经编译成虚拟 DOM，但真实 DOM 还没有挂载到页面；mounted 是 DOM 挂载完成，适合操作 DOM。在 mounted 中发请求，主要是因为此时组件已经完成挂载，DOM 已可用，适合进行依赖页面状态的初始化操作。
+- 更新阶段有 beforeUpdate 和 updated，beforeUpdate 是数据更新前，updated 是 DOM 更新后。
+- 销毁阶段有 beforeDestroy 和 destroyed，beforeDestroy 可清除定时器，移除事件监听，destroyed 时组件完全销毁。
 
 Vue3 保留了生命周期的核心逻辑，但做了以下调整：
-
 1. `beforeCreate` 和 `created` 被 `setup` 函数替代；
-
 2. 部分钩子名称前缀改为 `on`：onBeforeMount、onMounted、onBeforeUpdate、onUpdated 等 Composition API 生命周期钩子。
-
-3. beforeDestroy → beforeUnmount、destroyed → unmounted，更直观表达 “卸载” 含义
+3. `beforeDestroy` → `beforeUnmount`、`destroyed` → `unmounted`，更直观表达 “卸载” 含义
 
 ### 1.1 父子组件生命周期顺序
-
 创建时，父组件先创建实例，然后创建子组件，
 挂载时，父组件触发更新（父 beforeMount 先执行），子组件先完成 mounted，最后父组件 mounted。
 更新阶段，父组件触发更新（父 beforeUpdate 先执行），然后子组件更新完成（子updated 先完成），最后父组件 updated；
 销毁时，父 beforeDestroy 先执行，子 destroyed 先完成，父组件最后 destroyed。
 
-本质原因是**子组件依赖父组件的渲染结果**，必须等**子组件完成后父组件才算真正完成。**
+本质原因是子组件依赖父组件的渲染结果，必须等子组件完成后父组件才算真正完成。
 
 ## 2. `script setup` `data`
 ### 2.1 Setup
-`setup` 是 Vue3 中新增的配置项，组件中用到的：数据、方法、计算属性、监听器、生命周期组合逻辑等，通常都在这里定义。
+`setup` 是 Vue3 新增的配置项，组件中用到的：数据、方法、计算属性、监听器、生命周期组合逻辑等，通常都在这里定义。
 
 特点：
 - `setup` 会在 `beforeCreate` 之前执行。
@@ -40,9 +32,8 @@ Vue3 保留了生命周期的核心逻辑，但做了以下调整：
 
 `<script setup>` 则是更简洁的写法，它把 `setup` 中需要写的返回逻辑省略掉了，模板中可直接使用脚本内声明的变量和函数。
 
-
 ### 2.2 为什么 `data` 要写成函数
-`data` 必须写成函数，核心原因是避免组件实例之间共享同一个对象引用。
+`data` 必须写成函数，原因是避免组件实例之间共享同一个对象引用。
 
 如果直接写成对象：
 - 多个组件实例会共用同一份数据
@@ -52,54 +43,40 @@ Vue3 保留了生命周期的核心逻辑，但做了以下调整：
 - 每次创建组件实例都会返回一个新的对象
 - 每个实例数据相互独立
 
-
 ## 3. Vue2 vs Vue3
-
-- **响应式系统**：Vue2 使用 `Object.defineProperty`，无法监听新增/删除属性，性能稍低；Vue3 改用 `Proxy`，支持深层对象和数组监听。
-- **Options API vs Composition API**：
+- 响应式系统：Vue2 使用 `Object.defineProperty`，无法监听新增/删除属性，性能稍低；Vue3 改用 `Proxy`，支持深层对象和数组监听。
+- Options API vs Composition API：
   - Vue2 的主要写法是 Options API，按照 data、methods、watch 等选项来组织代码，但当组件变大时，相关逻辑会被拆散；
   - Vue3 提供更灵活的代码组织方式，替代 Options API 的逻辑分散问题，通过 setup 函数按功能逻辑组织代码。
-- **性能优化**：Vue2 Diff 算法优化有限；Vue3 通过静态提升（Static Hoisting）和 Patch Flag 减少虚拟 DOM 对比开销。
-- **TypeScript 支持**：Vue3 的类型推导和工程化体验更好。
+- 性能优化：Vue2 Diff 算法优化有限；Vue3 通过静态提升（Static Hoisting）和 Patch Flag 减少虚拟 DOM 对比开销。
+- TypeScript 支持：Vue3 的类型推导和工程化体验更好。
 
 ### 3.1 Vue2 响应式原理
 Vue 的响应式系统核心更准确地说是 观察者模式，并融合了 发布-订阅思想 来做依赖管理。
-
 在创建 Vue 实例时，会遍历 `data` 中的属性，并使用 `Object.defineProperty` 给每个属性定义 `getter` 和 `setter`。
-
 组件渲染时访问这些属性，会触发 `getter`，内部会做依赖收集，把当前的 `Watcher` 收集到 `Dep` 依赖收集器中。
-
 当数据发生变化时，会触发 `setter`，通知 `Dep` 中依赖这个数据的 `Watcher` 重新执行，渲染组件，最终更新视图。
 
 Vue2 的局限性在于：
-- 不能监听 **属性新增 / 删除**。
-- 不能直接监听 **数组下标修改**。
-- 初始化阶段需要 **递归遍历对象**，性能开销较大。
+- 不能监听 属性新增 / 删除。
+- 不能监听 数组下标修改。
+- 初始化阶段需要 递归遍历对象，性能开销较大。
 
 Vue2 中能直接新增对象属性吗？
-不能。
-Vue2 中不能直接新增对象属性，因为 `Object.defineProperty` 不能监听属性新增，不能保证响应式。
-需要使用 `Vue.set` 方法来新增属性。
+不能。因为 `Object.defineProperty` 不能监听属性新增，不能保证响应式。需要使用 `Vue.set` 方法来新增属性。
 
 ### 3.2 Vue3 响应式原理
-Vue3 使用 **Proxy** 替代了 `Object.defineProperty`，可以对整个对象做更完整的代理。使用 effect 代替 watcher。
-
-（`effect` 是真正执行副作用逻辑的函数，组件渲染函数可以看作一种特殊的 `effect`。）
-
-读取时触发 `get`，执行 `track` 收集依赖。
-数据变化时触发 `set` 或 `deleteProperty`，执行 `trigger` 派发更新。
-
-依赖这个属性的 `effect` / 组件渲染函数重新执行，视图更新。
+Vue3 使用 `Proxy` 替代了 `Object.defineProperty`，可以对整个对象做更完整的代理。使用 `effect` 代替 `watcher`。
+`effect` 是真正执行副作用逻辑的函数，组件渲染函数可以看作一种特殊的 `effect`。
+读取时触发 `get`，执行 `track` 收集依赖。数据变化时触发 `set` 或 `deleteProperty`，执行 `trigger` 派发更新。依赖这个属性的 `effect` / 组件渲染函数重新执行，视图更新。
 
 Vue3 常用下面的结构存储依赖关系：
-
 - `WeakMap`：以对象为维度保存依赖。
 - `Map`：以属性 key 为维度保存依赖。
 - `Set`：保存依赖这个属性的副作用函数 `effect`。
 
-
 ### 3.3 双向绑定本质与视图自动更新
-Vue 的双向绑定本质上是：**响应式系统 + 事件监听**。
+Vue 的双向绑定本质上是：响应式系统 + 事件监听。
 - 数据到视图：依赖响应式系统自动更新。
 - 视图到数据：通过事件监听，比如 `v-model` 本质上是 `:value` + `@input`。
 
@@ -112,7 +89,6 @@ Vue 的双向绑定本质上是：**响应式系统 + 事件监听**。
 
 ### 3.4 ref vs reactive
 ref 和reactive 都是 Vue3 用来创建响应式数据的 API
-
 - `ref` 
  - 可以接收基本数据类型，也可以接收对象类型。
  - ref 底层本质还是调用了 reactive，会使用 `Object.defineProperty` 的 `getter/setter` 拦截 `.value`，把传入的值包裹成一个 {value: 数据} 的对象，所以使用时必须通过 `.value` 取值和修改。
@@ -124,7 +100,6 @@ ref 和reactive 都是 Vue3 用来创建响应式数据的 API
   - reactive直接解构会丢失响应式，需要用 toRefs 转换。
 
 ### 3.5 `toRef` 与 `toRefs`
-
 `toRef` 和 `toRefs` 的作用，是把响应式对象中的属性转换成独立的 `ref` 对象，解构响应式对象时，避免丢失响应式。
 
 - `toRef`：一次转换一个属性。
@@ -143,14 +118,11 @@ let age = toRef(person,'age')
 
 ### 3.6 Vue 的 MVVM 模式
 MVVM（Model-View-ViewModel）是一种软件架构设计模式。
-
-- **Model**：数据层，对应 Vue 中的数据对象，通常是 `data` 选项中**定义的数据**（或**响应式数据**）。
-- **View**：视图层，对应 Vue 的模板，即用户看到的UI 层，仅负责展示数据和接收用户交互。
-- **ViewModel**：视图模型层，**双向绑定桥梁**，一方面，ViewModel 会监听 Model 的数据变化，当数据改变时，自动更新 View。另一方面，ViewModel 会监听 View 的用户操作，当视图发生交互时，自动同步修改 Model 中的数据。
-
+- Model：数据层，对应 Vue 中的数据对象，通常是 `data` 选项中定义的数据（或响应式数据）。
+- View：视图层，对应 Vue 的模板，即用户看到的UI 层，仅负责展示数据和接收用户交互。
+- ViewModel：视图模型层，双向绑定桥梁，一方面，ViewModel 会监听 Model 的数据变化，当数据改变时，自动更新 View。另一方面，ViewModel 会监听 View 的用户操作，当视图发生交互时，自动同步修改 Model 中的数据。
 
 ## 4. `computed` 计算属性 vs `watch` 监听 vs `watchEffect`
-
 `computed` 是用来根据已有数据计算新数据的，底层借助了object.defineproperty方法提供的getter和setter实现依赖追踪，而且它有缓存机制。只要依赖不变，多次访问也不会重复算。它更适合做派生值，而不是副作用逻辑。
 
 具体来说，computed 内部通过一个 lazy 的 effect 来管理。
@@ -168,17 +140,15 @@ MVVM（Model-View-ViewModel）是一种软件架构设计模式。
 `watchEffect` 是立即执行一个函数，并自动追踪函数中用到的所有响应式依赖，依赖变化时自动重新执行，不用明确指定。
 
 ## 5. 组件通信
-1. 父子组件通信是 Vue 中最常见的通信方式。
-
+1. 父子组件通信是 Vue 中最常见的通信方式：
 父组件通过`props`属性向子组件传值，子组件通过 `defineProps` 接收。
-
 - `props` 是单向数据流
 - 子组件不应该直接修改 `props`
-- 如果需要修改，应该通过 `emit` 通知父组件修改。
+- 如果需要修改，应该通过 `emit` 通知父组件修改
 
 子组件通过 `defineEmits` 注册事件，然后用 `emit('事件名', 参数)` 通知父组件。
 
-2. 兄弟通信：状态提升到共同父组件，或使用事件总线（Vue2 常见）
+2. 兄弟通信：状态提升到共同父组件，或使用事件总线（Vue2 常见）：
 3. 跨层级通信：`provide` / `inject`
 4. 全局状态管理：Pinia / Vuex
 5. 直接访问子组件：`ref` + `defineExpose`
@@ -217,60 +187,53 @@ MVVM（Model-View-ViewModel）是一种软件架构设计模式。
 - 切换成本低
 - 适合频繁切换场景
 
-补充：visibility: hidden 只是让元素不可见，但仍然占据原有布局空间，只会触发重绘，不会触发重排，因此切换成本更低。
+visibility: hidden 只是让元素不可见，但仍然占据原有布局空间，只会触发重绘，不会触发重排，因此切换成本更低。
 
 ### 8.2 `v-for` 为什么要 `key`
 `key` 的作用是唯一标识节点身份，帮助 Diff 算法准确复用节点。
 
 如果没有 `key`：
-
 - Vue 会采用就地复用策略
 - 列表插入、删除、排序时可能复用错节点
 - 容易导致输入框、checkbox、组件状态错位
 
 ### 8.3 v-on / @ 绑定事件
 编译时绑定事件，原生 DOM 事件直接绑定，自定义事件通过 emit 调用事件派发器触发。常见事件修饰符：
-
 - .stop：阻止冒泡
 - .prevent：阻止默认行为
 - .self：仅自身触发
 - .once：只触发一次
 
 ## 9. 模板渲染流程
-
 Vue 模板渲染过程大致分为：
-1. **解析**：将模板字符串解析成 AST（抽象语法树）
-2. **优化**：标记静态节点，方便后续 Diff 直接跳过。
-3. **生成代码**：把 AST 生成可执行的 render 函数。
-4. **执行 render**：再由 render 函数生成虚拟 DOM（VNode）。
-5. **Diff 更新**：对比新旧 VNode，将差异更新到真实 DOM。
+1. 解析：将模板字符串解析成 AST（抽象语法树）
+2. 优化：标记静态节点，方便后续 Diff 直接跳过。
+3. 生成代码：把 AST 生成可执行的 render 函数。
+4. 执行 render：再由 render 函数生成虚拟 DOM（VNode）。
+5. Diff 更新：对比新旧 VNode，将差异更新到真实 DOM。
 
 ## 10. 虚拟 DOM 与 Diff 算法的作用
-
-- **虚拟 DOM**：用 JavaScript 对象描述真实 DOM 结构。
-- **Diff 算法**：在每次数据发生变化前，虚拟 dom 都会缓存一份；当数据变化时，对比新旧虚拟 DOM 树；只更新变化的节点，避免整个树重渲染。
-- **Diff 的核心优化点**:
-1. **同级对比**：只比较**同一层级**的节点，不跨层级比较父节点和子节点，把复杂度从 O (n³) 降到 O (n)。
-2. **Key 的作用**：列表渲染时，**key 是给每一个 vnode 的唯一 id**。Diff 算法通过 Key 判断节点是否是同一个：
-3. **Vue Diff 进一步优化**：通过双端比较和最长递增子序列算法、Vue3 静态提升，减少 DOM 移动，提高性能。
+- 虚拟 DOM：用 JavaScript 对象描述真实 DOM 结构。
+- Diff 算法：在每次数据发生变化前，虚拟 dom 都会缓存一份；当数据变化时，对比新旧虚拟 DOM 树；只更新变化的节点，避免整个树重渲染。
+- Diff 的核心优化点:
+1. 同级对比：只比较同一层级的节点，不跨层级比较父节点和子节点，把复杂度从 O (n³) 降到 O (n)。
+2. Key 的作用：列表渲染时，key 是给每一个 vnode 的唯一 id。Diff 算法通过 Key 判断节点是否是同一个：
+3. Vue Diff 进一步优化：通过双端比较和最长递增子序列算法、Vue3 静态提升，减少 DOM 移动，提高性能。
 
 ### 10.1 静态提升与 Block Tree
 静态提升是把静态节点提升到 render 函数外，只创建一次，后续更新直接复用，不再重复创建。
-
 Block Tree 会给动态节点打上 Patch Flag，缩小 Diff 范围，在 Diff 时只比对动态内容，跳过静态节点。
 
 ## 11. 异步更新队列与 `nextTick`
 Vue 的数据更新不是同步直接改 DOM，而是先进入异步更新队列，统一批量刷新。这会导致修改完数据后立刻读取 DOM，往往拿不到最新结果
-
 此时就需要 `nextTick`：
 - 在 DOM 更新完成后执行回调
 - 确保拿到最新 DOM 状态
 
-
 ## 12. Vue Router 的导航守卫
 Vue Router 的导航守卫分为三类：
 
-1. **全局守卫**
+1. 全局守卫
   - `beforeEach`：全局前置守卫，常用于鉴权
   - `beforeResolve`
   - `afterEach`：全局后置钩子
@@ -287,7 +250,7 @@ router.afterEach((to, from) => {
   // 例如：埋点、关闭 loading
 })
 ```
-2. **路由独享守卫**：适合单页面特殊逻辑
+2. 路由独享守卫：适合单页面特殊逻辑
   - `beforeEnter`
 ```
 {
@@ -299,7 +262,7 @@ router.afterEach((to, from) => {
   }
 }
 ```
-3. **组件内守卫**：关注页面级生命周期和用户操作控制。
+3. 组件内守卫：关注页面级生命周期和用户操作控制。
   - `beforeRouteEnter`
   - `beforeRouteUpdate`
   - `beforeRouteLeave`
@@ -324,11 +287,9 @@ export default {
 beforeEach -> beforeEnter -> 组件内守卫 -> afterEach
 
 ### 12.1 路由监听
-
 Vue3 中可以通过 `watch` 监听 `router.currentRoute`，也可以通过 `onBeforeRouteUpdate` 监听路由变化。
 
 适用场景：
-
 - 路由参数变化时重新请求数据
 - 监听同组件复用下的路由更新
 - 记录路由变化日志
@@ -365,6 +326,7 @@ history 模式
   props: (route) => ({ query: route.query })
 }
 ```
+
 2. Params 参数
 - 通过 `params` 参数传递
 - 在路由配置中添加 `params` 参数
@@ -378,22 +340,16 @@ history 模式
 ```
 
 ## 13. 状态管理与全局数据
-
 ### 13.1 Vuex 的核心概念
-
-Vuex 主要概念包括：
-
- - State：用于存储全局共享数据。
- - Mutations：同步修改状态（通过 commit 触发）。
- - Actions：负责处理业务逻辑和异步操作，在 Vuex 中最终通过 Mutation 修改状态（通过 dispatch 触发）。
- - Getters：用于派生状态（相当于 store 中的计算属性），用来获得共享变量的值
+- State：用于存储全局共享数据。
+- Mutations：同步修改状态（通过 commit 触发）。
+- Actions：负责处理业务逻辑和异步操作，在 Vuex 中最终通过 Mutation 修改状态（通过 dispatch 触发）。
+- Getters：用于派生状态（相当于 store 中的计算属性），用来获得共享变量的值
 
 ### 13.2 Pinia 的核心概念
 Pinia 是 Vue3 推荐的状态管理方案，它本质上基于 Vue3 的 `reactive` 实现全局状态共享。使用`defineStore`定义 `state` 状态和 `actions` 方法。
-
 Pinia 它把每个 store 做成一个响应式对象，并用 Map 缓存起来，保证全局只有一份，从而实现组件之间共享数据。
-
-Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在页面刷新后会丢失，如果需要持久化需要额外接入 localStorage 等方案。
+Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在页面刷新后会丢失，如果需要持久化需要额外接入 localStorage，设置 persistedstate 插件。
 
 ### 13.3  Vuex 与 Pinia
 - Vuex 流程更严格，需要 mutation 修改 state
@@ -420,7 +376,6 @@ Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在�
 
 ## 14.1 `keep-alive`
 `keep-alive` 是 Vue 内置抽象组件，用于缓存组件实例，再次访问时复用缓存，避免组件在切换时被频繁销毁和重建。
-
 被缓存组件会触发 `activated`、`deactivated`
 
 使用方式
@@ -437,12 +392,10 @@ Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在�
 
 ## 15. `scoped` 样式
 `scoped` 用于让组件样式只作用于当前组件，避免污染全局样式。
-
 原理：编译时给元素加唯一属性，如 `data-v-xxx`
 
 ## 16. Vue2 迁移到 Vue3
 Vue2 到 Vue3 的迁移通常采用渐进式方案：
-
 1. 先通过兼容构建运行旧代码
 2. 逐步替换全局 API、生命周期、`v-model` 等不兼容点
 3. 引入 Composition API 优化逻辑复用
@@ -452,7 +405,7 @@ Vue2 到 Vue3 的迁移通常采用渐进式方案：
 渐进式框架的核心理念是允许开发者逐步增强或扩展应用程序的功能，而不是一次性提供一个全功能、一体化的解决方案。
 
 ## 18. 如何在 Vue 应用中进行表单处理和验证
-- 表单处理：可以使用 v - model 进行双向绑定。
+- 表单处理：可以使用 v-model 进行双向绑定。
 - 表单验证：
   - 使用第三方库：如 VeeValidate 或 Vue - Form - Validation。
   - 手动编写验证逻辑：在提交前检查表单状态。

@@ -28,10 +28,10 @@ import edge_tts
 
 
 DEFAULT_VOICE = "zh-CN-YunxiNeural"
-DEFAULT_RATE = "-20%"
+DEFAULT_RATE = "+2%"
 MAX_SEGMENT_CHARS = 2800
-DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/8工程化.md")
-DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/8工程化.mp3")
+DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/4Vue.md")
+DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/4Vue.mp3")
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,10 +100,12 @@ def load_text(input_path: str | None, inline_text: str | None) -> str:
 
 
 def clean_markdown(text: str) -> str:
-    # 去掉代码块，避免把大量符号和代码逐字念出来。
-    text = re.sub(r"```[\s\S]*?```", "\n", text)
-    # 行内代码去掉反引号，保留内容本身。
-    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # 去掉 fenced code block，避免把大量符号和代码逐字念出来。
+    text = re.sub(r"(^|\n)(`{3,}|~{3,})[^\n]*\n[\s\S]*?\n\2[^\n]*(?=\n|$)", "\n", text)
+    # 去掉缩进代码块。
+    text = re.sub(r"(?m)(?:^(?: {4}|\t).*(?:\n|$))+", "\n", text)
+    # 行内代码只去掉包裹反引号，保留内容本身。
+    text = re.sub(r"(?<!`)(`+)([^`\n]+?)\1(?!`)", r"\2", text)
     # 去掉强调语法里的星号，避免 TTS 把 * 念出来。
     text = text.replace("*", "")
     # 标题和列表符号做轻量清洗，保留正文。
