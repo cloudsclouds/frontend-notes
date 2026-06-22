@@ -25,13 +25,15 @@ import re
 from pathlib import Path
 
 import edge_tts
+from edge_tts.exceptions import NoAudioReceived
 
 
 DEFAULT_VOICE = "zh-CN-YunxiNeural"
 DEFAULT_RATE = "+2%"
 MAX_SEGMENT_CHARS = 2800
-DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/4Vue.md")
-DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/4Vue.mp3")
+RETRY_TIMES = 3
+DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/001projects/BioNote/1BioNote.md")
+DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/BioNote.mp3")
 
 
 def parse_args() -> argparse.Namespace:
@@ -217,6 +219,66 @@ def split_long_paragraph(paragraph: str, max_chars: int) -> list[str]:
     return result
 
 
+def split_segment_for_retry(text: str) -> list[str]:
+    text = text.strip()
+    if len(text) <= 1:
+        return [text]
+
+    parts = re.split(r"(?<=[。！？!?；;：:])", text)
+    parts = [part.strip() for part in parts if part.strip()]
+    if len(parts) >= 2:
+        return parts
+
+    midpoint = max(1, len(text) // 2)
+    return [text[:midpoint].strip(), text[midpoint:].strip()]
+
+
+async def write_segment_audio(
+    fp,
+    segment: str,
+    voice: str,
+    rate: str,
+    segment_label: str,
+) -> None:
+    last_error: Exception | None = None
+
+    for attempt in range(1, RETRY_TIMES + 1):
+        try:
+            communicate = edge_tts.Communicate(segment, voice=voice, rate=rate)
+            received_audio = False
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    fp.write(chunk["data"])
+                    received_audio = True
+
+            if not received_audio:
+                raise NoAudioReceived("No audio was received.")
+            return
+        except NoAudioReceived as exc:
+            last_error = exc
+            preview = segment[:80].replace("\n", " ")
+            print(
+                f"[warn] {segment_label} 第 {attempt}/{RETRY_TIMES} 次合成未收到音频，内容预览：{preview}"
+            )
+            await asyncio.sleep(1)
+
+    retry_parts = [part for part in split_segment_for_retry(segment) if part]
+    if len(retry_parts) > 1:
+        print(f"[warn] {segment_label} 自动拆成 {len(retry_parts)} 个更小片段后重试")
+        for child_index, part in enumerate(retry_parts, start=1):
+            await write_segment_audio(
+                fp=fp,
+                segment=part,
+                voice=voice,
+                rate=rate,
+                segment_label=f"{segment_label}.{child_index}",
+            )
+        return
+
+    if last_error is not None:
+        raise last_error
+
+
 async def synthesize_to_mp3(
     text: str,
     output_path: Path,
@@ -229,10 +291,13 @@ async def synthesize_to_mp3(
     # 用 stream 逐段写入同一个 mp3 文件，适合长笔记。
     with output_path.open("wb") as fp:
         for index, segment in enumerate(segments, start=1):
-            communicate = edge_tts.Communicate(segment, voice=voice, rate=rate)
-            async for chunk in communicate.stream():
-                if chunk["type"] == "audio":
-                    fp.write(chunk["data"])
+            await write_segment_audio(
+                fp=fp,
+                segment=segment,
+                voice=voice,
+                rate=rate,
+                segment_label=f"segment {index}",
+            )
             print(f"[{index}/{len(segments)}] 已完成一段语音合成")
 
 
