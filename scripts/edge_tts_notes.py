@@ -32,8 +32,8 @@ DEFAULT_VOICE = "zh-CN-YunxiNeural"
 DEFAULT_RATE = "-1%"
 MAX_SEGMENT_CHARS = 2800
 RETRY_TIMES = 3
-DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/001projects/5其他项目问题.md")
-DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/其他项目问题.mp3")
+DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/001projects/2实习1.md")
+DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/实习1.mp3")
 
 
 def parse_args() -> argparse.Namespace:
