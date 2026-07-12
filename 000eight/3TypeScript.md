@@ -114,7 +114,6 @@ type Result1 = IsString<string>; // "Yes"
 type Result2 = IsString<number>; // "No"
 ```
 
-
 ## 8. 泛型怎么理解？为什么泛型很重要？
 泛型可以理解成“类型层面的参数化”。也就是先写一个通用函数或通用类型，具体用什么类型，等使用时再传进去。
 
@@ -222,8 +221,7 @@ let strLength: number = (value2 as string).length;
 在 Vue 里，最常见的是给 `props`、`ref`、`computed`、状态管理和 API 数据写类型。
 
 ## 14. 装饰器怎么理解？
-装饰器本质上是一个函数，用来包装类、方法、属性或者参数，在不改原始核心逻辑的情况下增强它的行为。
-如果从思想上讲，它和高阶函数很像，本质是“函数增强”。
+装饰器本质上是一个函数，用来包装类、方法、属性或者参数，在不改原始核心逻辑的情况下增强它的行为。如果从思想上讲，它和高阶函数很像，本质是“函数增强”。
 
 实际场景里常见的用途有：
 - 日志
@@ -258,7 +256,7 @@ function log(target: unknown, key: string, descriptor: PropertyDescriptor) {
 ```
 
 ## 15. keyof 是做什么的？
-keyof 是 TypeScript 中的一个操作符，获取对象类型所有属性名组成的联合类型。
+`keyof` 是 TypeScript 中的一个操作符，获取对象类型所有属性名组成的联合类型。
 
 ```ts
 type Person = {
@@ -270,7 +268,7 @@ type PersonKeys = keyof Person; // "name" | "age"
 ```
 
 ## 16. 说说 TypeScript 中的 Pick？
-Pick 是 TypeScript 中的一个内置类型，用于从另一个类型中选择一组属性。
+`Pick` 是 TypeScript 中的一个内置类型，用于从另一个类型中选择一组属性。
 
 ```ts
 type Person = {

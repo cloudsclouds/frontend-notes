@@ -20,10 +20,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import io
+import os
 import subprocess
 import re
 from pathlib import Path
 
+import aiohttp
 import edge_tts
 from edge_tts.exceptions import NoAudioReceived
 
@@ -32,8 +35,15 @@ DEFAULT_VOICE = "zh-CN-YunxiNeural"
 DEFAULT_RATE = "-1%"
 MAX_SEGMENT_CHARS = 2800
 RETRY_TIMES = 3
-DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/001projects/BioNote/1BioNote.md")
-DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/BioNote.mp3")
+RETRY_BASE_DELAY_SECONDS = 2
+DEFAULT_CONNECT_TIMEOUT = 30
+DEFAULT_RECEIVE_TIMEOUT = 90
+DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/2JavaScript.md")
+DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/2JavaScript.mp3")
+
+
+class TTSNetworkError(RuntimeError):
+    pass
 
 
 def parse_args() -> argparse.Namespace:
@@ -87,6 +97,24 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=3,
         help="按几级标题拆分，默认 3，表示会按 ### 这一层拆分。",
+    )
+    parser.add_argument(
+        "--proxy",
+        type=str,
+        default=os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy"),
+        help="代理地址，例如 http://127.0.0.1:7890。默认读取 HTTPS_PROXY/https_proxy。",
+    )
+    parser.add_argument(
+        "--connect-timeout",
+        type=int,
+        default=DEFAULT_CONNECT_TIMEOUT,
+        help=f"连接超时时间，默认 {DEFAULT_CONNECT_TIMEOUT} 秒。",
+    )
+    parser.add_argument(
+        "--receive-timeout",
+        type=int,
+        default=DEFAULT_RECEIVE_TIMEOUT,
+        help=f"接收超时时间，默认 {DEFAULT_RECEIVE_TIMEOUT} 秒。",
     )
     return parser.parse_args()
 
@@ -239,31 +267,45 @@ async def write_segment_audio(
     voice: str,
     rate: str,
     segment_label: str,
+    proxy: str | None,
+    connect_timeout: int,
+    receive_timeout: int,
 ) -> None:
     last_error: Exception | None = None
 
     for attempt in range(1, RETRY_TIMES + 1):
         try:
-            communicate = edge_tts.Communicate(segment, voice=voice, rate=rate)
+            communicate = edge_tts.Communicate(
+                segment,
+                voice=voice,
+                rate=rate,
+                proxy=proxy,
+                connect_timeout=connect_timeout,
+                receive_timeout=receive_timeout,
+            )
             received_audio = False
+            segment_audio = io.BytesIO()
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
-                    fp.write(chunk["data"])
+                    segment_audio.write(chunk["data"])
                     received_audio = True
 
             if not received_audio:
                 raise NoAudioReceived("No audio was received.")
+            fp.write(segment_audio.getvalue())
             return
-        except NoAudioReceived as exc:
+        except (NoAudioReceived, aiohttp.ClientError, asyncio.TimeoutError, ConnectionError, OSError) as exc:
             last_error = exc
             preview = segment[:80].replace("\n", " ")
+            wait_seconds = RETRY_BASE_DELAY_SECONDS * attempt
             print(
-                f"[warn] {segment_label} 第 {attempt}/{RETRY_TIMES} 次合成未收到音频，内容预览：{preview}"
+                f"[warn] {segment_label} 第 {attempt}/{RETRY_TIMES} 次合成失败：{exc}；"
+                f"{wait_seconds} 秒后重试。内容预览：{preview}"
             )
-            await asyncio.sleep(1)
+            await asyncio.sleep(wait_seconds)
 
     retry_parts = [part for part in split_segment_for_retry(segment) if part]
-    if len(retry_parts) > 1:
+    if len(retry_parts) > 1 and isinstance(last_error, NoAudioReceived):
         print(f"[warn] {segment_label} 自动拆成 {len(retry_parts)} 个更小片段后重试")
         for child_index, part in enumerate(retry_parts, start=1):
             await write_segment_audio(
@@ -272,11 +314,17 @@ async def write_segment_audio(
                 voice=voice,
                 rate=rate,
                 segment_label=f"{segment_label}.{child_index}",
+                proxy=proxy,
+                connect_timeout=connect_timeout,
+                receive_timeout=receive_timeout,
             )
         return
 
     if last_error is not None:
-        raise last_error
+        raise TTSNetworkError(
+            "语音服务连接失败。请检查网络/代理，或使用 "
+            "--proxy http://127.0.0.1:你的端口 后重试。"
+        ) from last_error
 
 
 async def synthesize_to_mp3(
@@ -284,6 +332,9 @@ async def synthesize_to_mp3(
     output_path: Path,
     voice: str,
     rate: str,
+    proxy: str | None,
+    connect_timeout: int,
+    receive_timeout: int,
 ) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     segments = split_text(text)
@@ -297,6 +348,9 @@ async def synthesize_to_mp3(
                 voice=voice,
                 rate=rate,
                 segment_label=f"segment {index}",
+                proxy=proxy,
+                connect_timeout=connect_timeout,
+                receive_timeout=receive_timeout,
             )
             print(f"[{index}/{len(segments)}] 已完成一段语音合成")
 
@@ -346,6 +400,9 @@ def main() -> None:
                     output_path=part_output_path,
                     voice=args.voice,
                     rate=args.rate,
+                    proxy=args.proxy,
+                    connect_timeout=args.connect_timeout,
+                    receive_timeout=args.receive_timeout,
                 )
             )
             generated_files.append(part_output_path)
@@ -361,13 +418,19 @@ def main() -> None:
             output_path=output_path,
             voice=args.voice,
             rate=args.rate,
+            proxy=args.proxy,
+            connect_timeout=args.connect_timeout,
+            receive_timeout=args.receive_timeout,
         )
     )
-    print(f"已生成 mp3: {args.output}")
+    print(f"已生成 mp3: {output_path}")
 
     # if args.play:
     #     play_audio(output_path)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except TTSNetworkError as exc:
+        raise SystemExit(f"[error] {exc}") from exc
