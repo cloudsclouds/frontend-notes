@@ -38,8 +38,8 @@ RETRY_TIMES = 3
 RETRY_BASE_DELAY_SECONDS = 2
 DEFAULT_CONNECT_TIMEOUT = 30
 DEFAULT_RECEIVE_TIMEOUT = 90
-DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/6计网.md")
-DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/6计网.mp3")
+DEFAULT_INPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/000eight/10AI.md")
+DEFAULT_OUTPUT_PATH = Path("/Users/fuying/01projects/frontend-notes/mp3/10AI.mp3")
 
 
 
