@@ -88,7 +88,7 @@ Vue 的双向绑定本质上是：响应式系统 + 事件监听。
 4. 通过事件监听把视图输入同步回数据。
 
 ### 3.4 ref vs reactive
-ref 和reactive 都是 Vue3 用来创建响应式数据的 API
+ref 和 reactive 都是 Vue3 用来创建响应式数据的 API
 - `ref` 
  - 可以接收基本数据类型，也可以接收对象类型。
  - ref 底层本质还是调用了 reactive，会使用 `Object.defineProperty` 的 `getter/setter` 拦截 `.value`，把传入的值包裹成一个 {value: 数据} 的对象，所以使用时必须通过 `.value` 取值和修改。
@@ -97,7 +97,7 @@ ref 和reactive 都是 Vue3 用来创建响应式数据的 API
 - `reactive` 
   - 用于创建对象类型的响应式数据。
   - 本质上是通过 `Proxy` 返回一个代理对象，支持深层次响应式。
-  - reactive直接解构会丢失响应式，需要用 toRefs 转换。
+  - reactive 直接解构会丢失响应式，需要用 toRefs 转换。
 
 ### 3.5 `toRef` 与 `toRefs`
 `toRef` 和 `toRefs` 的作用，是把响应式对象中的属性转换成独立的 `ref` 对象，解构响应式对象时，避免丢失响应式。
@@ -123,7 +123,7 @@ MVVM（Model-View-ViewModel）是一种软件架构设计模式。
 - ViewModel：视图模型层，双向绑定桥梁，一方面，ViewModel 会监听 Model 的数据变化，当数据改变时，自动更新 View。另一方面，ViewModel 会监听 View 的用户操作，当视图发生交互时，自动同步修改 Model 中的数据。
 
 ## 4. `computed` 计算属性 vs `watch` 监听 vs `watchEffect`
-`computed` 是用来根据已有数据计算新数据的，底层借助了object.defineproperty方法提供的getter和setter实现依赖追踪，而且它有缓存机制。只要依赖不变，多次访问也不会重复算。它更适合做派生值，而不是副作用逻辑。
+`computed` 是用来根据已有数据计算新数据的，底层借助了 object.defineproperty 方法提供的 getter 和 setter 实现依赖追踪，而且它有缓存机制。只要依赖不变，多次访问也不会重复算。它更适合做派生值，而不是副作用逻辑。
 
 具体来说，computed 内部通过一个 lazy 的 effect 来管理。
 - 依赖收集（track）
@@ -141,7 +141,7 @@ MVVM（Model-View-ViewModel）是一种软件架构设计模式。
 
 ## 5. 组件通信
 1. 父子组件通信是 Vue 中最常见的通信方式：
-父组件通过`props`属性向子组件传值，子组件通过 `defineProps` 接收。
+父组件通过 `props` 属性向子组件传值，子组件通过 `defineProps` 接收。
 - `props` 是单向数据流
 - 子组件不应该直接修改 `props`
 - 如果需要修改，应该通过 `emit` 通知父组件修改
@@ -161,7 +161,7 @@ MVVM（Model-View-ViewModel）是一种软件架构设计模式。
 插槽用于内容分发，让父组件向子组件传递模板结构，而不是只传数据。
 
 1. 默认插槽
-- 子组件中使用 `<slot>`接收父组件内容
+- 子组件中使用 `<slot>` 接收父组件内容
 - 父组件传入默认内容
 
 2. 具名插槽
@@ -358,7 +358,7 @@ Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在�
 
 ## 14. Vue 性能优化手段
 1. 缓存静态内容
-- `v-once`：渲染一次后不再响应数据变化，处理那些渲染一次后就不再响应数据变化的DOM元素.
+- `v-once`：渲染一次后不再响应数据变化，处理那些渲染一次后就不再响应数据变化的 DOM 元素.
 - `v-memo`：缓存函数渲染结果，减少重复计算。
 
 2. 路由懒加载 / 组件异步加载
@@ -367,7 +367,7 @@ Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在�
 
 3. 避免深层响应式对象
 - 深层对象响应式会增加依赖追踪开销。
-- 对不需要响应的数据可以用 `Object.freeze()`  冻结。
+- 对不需要响应的数据可以用 `Object.freeze()` 冻结。
 
 4. 其他优化
 - 合理拆分组件，减少不必要的重渲染范围。
@@ -379,7 +379,7 @@ Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在�
 被缓存组件会触发 `activated`、`deactivated`
 
 使用方式
-1. 路由配置：在需要缓存的页面路由meta信息中添加keepAlive: true标识。
+1. 路由配置：在需要缓存的页面路由 meta 信息中添加 `keepAlive: true` 标识。
 2. 缓存容器组件:在布局文件中使用<keep-alive>包裹路由出口。
 
 ```html

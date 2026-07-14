@@ -48,9 +48,9 @@ React 的 Diff 有几个重要策略：
   - 同层比较：只比较在同一层级的节点，不跨层比较，降低了时间复杂度。
   - 不同类型节点直接替换：如果新旧节点类型不同，会直接销毁重建。
   - 通过 key 优化列表更新：列表元素需设置唯一 key 标识，当列表变化时，通过 key 匹配找到可复用节点，减少不必要的销毁和创建。
-  - 将变化部分批量更新到真实DOM
+  - 将变化部分批量更新到真实 DOM
 
-## 6. 组件key的作用及缺失的问题
+## 6. 组件 key 的作用及缺失的问题
 key 的作用是给列表中的每个元素一个唯一标识，帮助 React 在 Diff 时 快速识别元素变化、是否可复用。
 
 如果缺失 key， React 会默认使用索引作为 key， 当列表增删或排序时，可能导致元素错位更新，比如删除第一个元素，后面元素的索引会变，React 可能误判为 元素内容变化而非位置变化，从而重新创建 DOM。
@@ -68,7 +68,7 @@ React 合成事件是对浏览器原生事件的封装，让事件处理在不�
 
 ## 组件与生命周期
 ## 8. 类组件与函数组件的区别
-组件主要分为 类组件和 函数组件。它们都可以用来构建 UI，但实现方式和使用方式有所不同。
+组件主要分为 类组件 和 函数组件。它们都可以用来构建 UI，但实现方式和使用方式有所不同。
 - 类组件是通过 class 继承 React.Component 定义的，使用 this.state 和 setState 管理状态，并通过生命周期方法管理组件行为。
 - 函数组件是 普通函数，通过 Hooks（如 useState、useEffect） 来管理状态和生命周期，直接接收 props 作为参数，代码更加简洁。
 
@@ -177,7 +177,7 @@ function Form() {
 4. useCallback 和 useMemo，用于性能优化，缓存函数和计算结果；
 5. useRef，获取 DOM 元素或 保存跨渲染周期的变量。
 
-## 11.1 Hooks的规则
+## 11.1 Hooks 的规则
 只能在函数组件或自定义 Hooks 的顶层调用（不可在条件、循环中），因为 Hooks 的调用顺序必须固定，这样 React 才能正确匹配每个 Hook 节点。
 
 在函数组件执行时，React 会维护一个 hooks 链表，每调用一个 Hook，就按顺序取出或创建对应的状态节点。如果 Hooks 写在条件语句中，会导致执行顺序不一致，从而出现状态错位问题。
@@ -218,8 +218,8 @@ setState 大多数情况下是异步的，比如在 React 合成事件、生命�
 ```
 
 ## 13. useEffect
-useEffect：处理副作用（数据请求、DOM操作），可模拟生命周期
-副作用：指在函数执行过程中，除了函数本身的逻辑外，还执行了其他操作，比如数据请求、DOM操作等，这个操作会影响到其他地方，比如数据请求会影响到数据，DOM操作会影响到DOM。
+useEffect：处理副作用（数据请求、DOM 操作），可模拟生命周期
+副作用：指在函数执行过程中，除了函数本身的逻辑外，还执行了其他操作，比如数据请求、DOM 操作等，这个操作会影响到其他地方，比如数据请求会影响到数据，DOM 操作会影响到 DOM。
 
 ```jsx
 useEffect(() => {
@@ -250,7 +250,7 @@ useEffect(() => {
 - 缓存函数/对象
 - 使用函数式更新
 
-### 13.1 useEffect中setState的问题及解决
+### 13.1 useEffect 中 setState 的问题及解决
 问题：在 useEffect 中使用 setState 可能导致无限循环
 
 原因：
@@ -273,7 +273,7 @@ useEffect(() => {
 ## 14. useRef
 用于创建可变引用对象，常用于获取 DOM 节点或保存跨渲染的值而不触发组件重渲染。它与 state 的主要区别是 ref 不会触发渲染，适合保存不直接影响 UI 的数据或引用。
 
-1. 保持变量不变：如果希望某个变量在每次重新渲染时都保持不变，可以使用useRef。例如，需要保存一个计时器的ID，而不希望它在组件重新渲染时被重置：
+1. 保持变量不变：如果希望某个变量在每次重新渲染时都保持不变，可以使用 useRef。例如，需要保存一个计时器的 ID，而不希望它在组件重新渲染时被重置：
 ```jsx
 const timerId = useRef(null);
 useEffect(() => {
@@ -296,7 +296,7 @@ return ;
 useMemo 用于缓存计算结果，避免重复计算，优化的是组件内部的计算；
 useCallback 用于缓存函数的，它确保只有在依赖项变化时才重新创建函数，从而避免子组件不必要的重新渲染。
 
-例如，你有一个计算密集型的函数，它依赖于某些输入数据，你可以使用useMemo来缓存其计算结果：
+例如，你有一个计算密集型的函数，它依赖于某些输入数据，你可以使用 useMemo 来缓存其计算结果：
 
 ```jsx
 function App() {
@@ -321,7 +321,7 @@ function App() {
 };
 ```
 
-例如，你有一个子组件需要依赖一个回调函数，你可以使用useCallback来优化性能：
+例如，你有一个子组件需要依赖一个回调函数，你可以使用 useCallback 来优化性能：
 
 缓存函数引用。
 ```jsx
@@ -337,7 +337,7 @@ const handleClick = useMemo(() => {
   };
 }, []);
 ```
-本质上：useCallback = useMemo缓存函数
+本质上：useCallback = useMemo 缓存函数
 
 ## 16. useMemo vs React.Memo
 useMemo 用于缓存计算结果，避免重复计算，优化的是组件内部的计算；React.memo 用于缓存组件渲染，避免不必要的重新渲染，优化的是组件本身的重计算。
@@ -461,11 +461,11 @@ function Counter() {
 ```
 
 ## 状态管理与通信
-## 19. React组件间通信方式
+## 19. React 组件间通信方式
 1. 父 → 子：通过 props 传递。
 2. 子 → 父：父组件通过 props 传递回调函数。
 3. 兄弟组件：状态提升到共同父组件，或使用 Context/Redux。
-4. 深层嵌套：Context API或状态管理库（Redux）。
+4. 深层嵌套：Context API 或状态管理库（Redux）。
 
 ## 20. Redux 的核心概念与流程
 ### 核心组成
@@ -473,7 +473,7 @@ function Counter() {
 - Reducer 是纯函数，接收旧 state 和 Action，返回新 state。
 - Store 是存储 state 的对象，通过 createStore 创建，提供 getState、dispatch、subscribe 等方法。
 
-### Redux数据流动过程
+### Redux 数据流动过程
 1. 组件通过 dispatch 触发Action；
 2. Store 将当前的 state 和 action 传入 Reducer；
 3. Reducer 计算并返回新的 State
@@ -505,19 +505,19 @@ function Counter() {
 ```
 
 ## 性能优化
-## 22. 如何避免不必要的重渲染？React性能优化方法
+## 22. 如何避免不必要的重渲染？React 性能优化方法
 - 函数组件：使用 React.memo()包裹函数组件，缓存组件渲染结果；结合 useMemo /useCallback 缓存计算结果和传递给子组件的函数，避免因引用变化导致子组件重渲染。
 - 类组件：shouldComponentUpdate 手动判断是否更新 或继承 PureComponent 自动浅比较 props、state。
 - 合理使用key属性
 - 代码分割
 
-## 23. React.lazy与Suspense的作用
+## 23. React.lazy 与 Suspense 的作用
 React 中通常使用 React.lazy 和 Suspense 实现路由级懒加载和组件懒加载，从而避免一次性加载所有组件导致首屏渲染时间过长。
 - React.lazy：动态导入组件，实现代码分割。
 - Suspense：包裹懒加载组件，提供加载中的UI（如loading动画）。
 原理是利用 ES Module 的动态导入，Webpack 会自动进行代码分割，访问路由时才加载对应 Chunk。
 
-## 24. React 18新特性
+## 24. React 18 新特性
 - 并发模式：支持优先级调度（如startTransition标记非紧急更新）。
 - 自动批处理：多个状态更新合并为一次渲染。
 - 新的Root API：createRoot替代ReactDOM.render。
