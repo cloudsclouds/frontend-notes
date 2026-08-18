@@ -342,15 +342,15 @@ Grid 是二维布局，适合同时控制行和列，更适合页面级布局、
 BFC 是块级格式化上下文，可以把它理解成一个独立的布局环境。BFC 内部的元素不会影响外部，外部元素也不会轻易干扰内部布局。
 
 它的作用有：
-- 清除浮动导致的父元素高度塌陷
-- 避免浮动元素和普通块元素重叠问题
-- 阻止垂直 Margin 合并，父子元素或相邻元素的 margin 不再发生合并
+- 浮动塌陷：父元素没有高度，子元素浮动会脱离文档流，父高度塌陷；给父元素触发BFC，父容器就可以计算浮动子元素的高度，从而清除浮动塌陷。
+- 外边距折叠：阻止垂直 Margin 合并，父子元素或相邻元素的 margin 不再发生合并
 
 常见触发方式有：
-- `overflow: hidden/auto/scroll`
+- `overflow: hidden/auto/scroll`，不为 `visible`
 - `display: inline-block/flex/grid`
 - `position: absolute/fixed`
 - `float` 不为 `none`
+
 
 ## 15. 元素怎么水平垂直居中？
 - 如果是单行文本垂直居中，可以用 `line-height` 等于高度。
@@ -592,6 +592,10 @@ setRem();
 - 文本相关属性比较容易继承，比如 `color`、`font-size`、`font-family`、`line-height`。
 - 盒模型、布局、定位相关通常不继承，比如 `width`、`height`、`margin`、`padding`、`border`、`position`、`display`。
 
+- inherit：强制继承父元素样式
+- initial：重置为浏览器初始默认值
+- unset：能继承就继承，不能继承就重置初始化。
+
 ## 25. CSS 变量有什么优势？
 CSS 变量，也叫自定义属性：
 - 便于统一主题管理
@@ -679,13 +683,15 @@ CSS Sprites 就是把多个小图合并成一张大图，再通过 `background-p
 ## 29. 回流、重绘、合成分别是什么？怎么做 CSS 性能优化？
 回流，也叫重排，是几何属性变化后浏览器重新计算布局，比如宽高、位置、盒模型变化。
 重绘是外观属性变化，比如颜色、背景、阴影变化，但不影响布局。
+重排一定会触发重绘，重绘不一定重排。
+
 合成是图层已经准备好后做最终合并，通常像 `transform`、`opacity` 这种更容易只走合成层，性能最好。
 
 优化原则一般是：
 - 减少回流重绘
-- 批量修改 DOM
-- 优先用 `transform` 和 `opacity`
-- 避免频繁读写布局属性交错
+- 批量修改 DOM，不要频繁操作 DOM 
+- 动画优先用 `transform` 和 `opacity`，进入合成层，跳过重排。
+- 避免频繁读写 offset、scroll 等布局属性。
 - 控制选择器复杂度
 
 ```js
@@ -912,3 +918,12 @@ window.addEventListener('scroll', () => {
   background: linear-gradient(to right, red, blue);
 }
 ```
+
+## 34. 懒加载
+懒加载就是延迟加载，不在初始化页面时一次性加载全部资源，资源进入可视区域的时候再加载，减少首屏请求，加快首屏速度。
+图片懒加载：
+1. 旧方案监听scroll滚动事件，判断位置；
+2. 现代可以推荐用intersection observer来判断观察元素是否进入视控
+组件懒加载：
+1. VUE defineAsyncComponentment异步组件；
+2. react 通过 React.Lazy 配合 Supense，本质是代码分割，按需 import。

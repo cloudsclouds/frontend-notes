@@ -609,7 +609,6 @@ React 16.3新增的开发模式，用于检测不符合最佳实践的代码：
 ```
 
 ## 为什么 StrictMode 下 useEffect 会执行两次？
-
 React18 的 StrictMode 在开发环境下会故意模拟一次组件的挂载、卸载和重新挂载流程，也就是 Mount → Unmount → Mount。
 这样可以帮助开发者检查副作用是否安全，特别是 useEffect 中是否正确进行了资源清理，比如事件监听、定时器、订阅或 WebSocket 连接等。
 因此看起来 useEffect 会执行两次，但实际上是组件被重新挂载了两次。
