@@ -52,7 +52,7 @@ Vue3 保留了生命周期的核心逻辑，但做了以下调整：
 - TypeScript 支持：Vue3 的类型推导和工程化体验更好。
 
 ### 3.1 Vue2 响应式原理
-Vue 的响应式系统核心更准确地说是 观察者模式，并融合了 发布-订阅思想 来做依赖管理。
+Vue2 的响应式系统核心更准确地说是 观察者模式，并融合了 发布-订阅思想 来做依赖管理。
 在创建 Vue 实例时，会遍历 `data` 中的属性，并使用 `Object.defineProperty` 给每个属性定义 `getter` 和 `setter`。
 组件渲染时访问这些属性，会触发 `getter`，内部会做依赖收集，把当前的 `Watcher` 收集到 `Dep` 依赖收集器中。
 当数据发生变化时，会触发 `setter`，通知 `Dep` 中依赖这个数据的 `Watcher` 重新执行，渲染组件，最终更新视图。
@@ -119,7 +119,7 @@ let age = toRef(person,'age')
 ### 3.6 Vue 的 MVVM 模式
 MVVM（Model-View-ViewModel）是一种软件架构设计模式。
 - Model：数据层，对应 Vue 中的数据对象，通常是 `data` 选项中定义的数据（或响应式数据）。
-- View：视图层，对应 Vue 的模板，即用户看到的UI 层，仅负责展示数据和接收用户交互。
+- View：视图层，对应 Vue 的模板，即用户看到的 UI 层，仅负责展示数据和接收用户交互。
 - ViewModel：视图模型层，双向绑定桥梁，一方面，ViewModel 会监听 Model 的数据变化，当数据改变时，自动更新 View。另一方面，ViewModel 会监听 View 的用户操作，当视图发生交互时，自动同步修改 Model 中的数据。
 
 ## 4. `computed` 计算属性 vs `watch` 监听 vs `watchEffect`
@@ -351,7 +351,7 @@ Pinia 是 Vue3 推荐的状态管理方案，它本质上基于 Vue3 的 `reacti
 Pinia 它把每个 store 做成一个响应式对象，并用 Map 缓存起来，保证全局只有一份，从而实现组件之间共享数据。
 Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在页面刷新后会丢失，如果需要持久化需要额外接入 localStorage，设置 persistedstate 插件。
 
-### 13.3  Vuex 与 Pinia
+### 13.3 Vuex 与 Pinia
 - Vuex 流程更严格，需要 mutation 修改 state
 - Pinia 去掉 mutation，允许直接修改 state，更简洁
 - Pinia 更贴近 Composition API，TypeScript 支持更好
@@ -374,7 +374,7 @@ Pinia 的数据存在 浏览器运行时（JS 引擎）的内存里，因此在�
 - 使用 computed 或 watch 替代频繁调用 methods。
 - 渲染大列表时可以使用虚拟列表，减少 DOM 节点数量。
 
-## 14.1 `keep-alive`
+### 14.1 `keep-alive`
 `keep-alive` 是 Vue 内置抽象组件，用于缓存组件实例，再次访问时复用缓存，避免组件在切换时被频繁销毁和重建。
 被缓存组件会触发 `activated`、`deactivated`
 

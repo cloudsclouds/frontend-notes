@@ -149,12 +149,6 @@ Flex 是一维布局，核心是沿主轴分配空间，适合做导航栏、按
 }
 ```
 
-```css
-/* flex: 1 和 flex: auto 的区别 */
-.a { flex: 1; }    /* 1 1 0% */
-.b { flex: auto; } /* 1 1 auto */
-```
-
 ## 11. Grid 布局和 Flex 有什么区别？
 Flex 是一维布局，适合控制一行或者一列里的排列关系。
 Grid 是二维布局，适合同时控制行和列，更适合页面级布局、复杂网格、仪表盘、画廊这类场景。
@@ -358,13 +352,6 @@ BFC 是块级格式化上下文，可以把它理解成一个独立的布局环�
 - 最推荐使用 Flex 布局：
 `display: flex; justify-content: center; align-items: center;`
 
-```css
-.center {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-```
 
 ```css
 .center {

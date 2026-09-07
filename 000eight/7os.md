@@ -118,7 +118,7 @@ EventLoop 只是调度中心，不执行异步操作本体。
 - 提升安全性（沙箱）
 - 利用多核 CPU
 
-## （4）为什么 JS 本身不允许多线程访问 DOM？
+##   JS 本身不允许多线程访问 DOM？
 避免出现：
 - 写时竞争（race condition）
 - 锁问题（mutex、deadlock）
@@ -187,7 +187,6 @@ SW 又同步等待页面某个事件
 最常见于编码错误：
 
 ```ts
-
 await new Promise(() => {}) // 永不 resolve
 ```
 

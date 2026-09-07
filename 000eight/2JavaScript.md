@@ -520,7 +520,7 @@ sort 会直接修改原数组并返回自身；toSorted 会返回一个排序后
 
 2. instanceof：判断原型链，判断对象是否属于某个构造函数；原理：基于原型链的查找，判断右侧构造函数的 prototype 是否在左侧对象的原型链上。instanceof 只能检测 “对象”，对于字符串、数字等基本类型，会直接返回 false。
 
-3. toString() 是 Object 原型上的方法，它会返回一个字符串："[object 类型]"，更精确的判断，尤其适合区分null、数组、日期等typeof无法准确识别的类型
+3. toString() 是 Object 原型上的方法，它会返回一个字符串："[object 类型]"，更精确的判断，尤其适合区分null、数组、日期等typeof 无法准确识别的类型
 ```js
 Object.prototype.toString.call(null);     // "[object Null]"
 Object.prototype.toString.call([]);       // "[object Array]"
@@ -530,9 +530,9 @@ Object.prototype.toString.call([]);       // "[object Array]"
 ```js
 const a = 123
 a instanceof Number // false
-// a是基本类型，不是对象，
+// a 是基本类型，不是对象，
 // 包装类只是临时创建，用完就销毁
-// 只有new Number(123),才是对象，才会 instanceof Number -> true
+// 只有 new Number(123),才是对象，才会 instanceof Number -> true
 
 // 字符串用 new Number 、parseInt 转换会怎样
 // new Number(str)    合法数字字符串，返回 Number 包装对象；否则返回 ·Number{NaN}
@@ -549,7 +549,7 @@ a instanceof Number // false
 ### 10.2 函数参数传递时行为有什么不同？
 JS 函数全部都是按值传递。
 如果传的是基本类型，那么就是传递的是值的副本，函数内部修改参数不会影响外部原始变量。
-如果传传引用类型，它传递的是地址副本，函数内部通过地址修改对象属性，外部对象的属性也会跟着改变，但如果直接给参数重新赋值，不会影响外面。
+如果传引用类型，它传递的是地址副本，函数内部通过地址修改对象属性，外部对象的属性也会跟着改变，但如果直接给参数重新赋值，不会影响外面。
 
 ## 11. JavaScript 字符串的常用方法有哪些？
 `concat`：用于将一个或多个字符串拼接成一个新字符串
@@ -563,7 +563,7 @@ JS 函数全部都是按值传递。
 
 ## 12. “===”、“==” 的区别？
 - 相等操作符（==）会做类型转换，再进行值的比较，全等运算符不会做类型转换；
-- null 和 undefined 比较，相等操作符（==）为true，全等为false。
+- null 和 undefined 比较，相等操作符（==）为 true，全等为 false。
 - 在比较 null 的情况的时候，一般使用相等操作符`==`。
 
 ## 13. 解释 var、let 和 const 的区别
@@ -653,7 +653,7 @@ JavaScript 本身是基于原型链实现继承的，class 是 ES6 引入的一�
 16. 全局对象标准化 - globalThis
 
 ## 16. Ajax、Axios、Fetch 的对比
-1. AJAX 是通过 XmlHttpRequest 对象来向服务器发异步请求，从服务器获得数据，然后用JavaScript 来操作 DOM 而更新页面。多个请求之间如果有先后关系的话，就会出现回调地狱；
+1. AJAX 是通过 XmlHttpRequest 对象来向服务器发异步请求，从服务器获得数据，然后用 JavaScript 来操作 DOM 而更新页面。多个请求之间如果有先后关系的话，就会出现回调地狱；
 2. axios：
 - 支持 `Promise` API
 - 从浏览器中创建 XMLHttpRequest
@@ -715,7 +715,7 @@ JavaScript 在创建变量时自动分配内存。不同数据类型存储方式
   - 辅助线程并行标记
   - 主线程继续执行 JS
 
-## 18. DOM常见的操作有哪些？
+## 18. DOM 常见的操作有哪些？
 文档对象模型 (DOM) 是 HTML 和 XML 文档的编程接口。
 它提供了对文档的结构化的表述，并定义了一种方式可以使从程序中对该结构进行访问，从而改变文档的结构，样式和内容。
 任何 HTML 或 XML 文档都可以用 DOM 表示为一个由节点构成的层级结构
@@ -824,7 +824,7 @@ Session：存储在服务器端的一种用户状态管理方式。用户第一�
 ### 21.3 Cookie 的属性
 1. Expires 和 Max-Age 用于控制过期时间
 2. Secure 表示只在 HTTPS 下传输
-3. HttpOnly 防止 JavaScript 访问提升安全性，不会通过可会断脚本访问，只有http请求会携带这个 cookie，帮助防止跨站脚本攻击。
+3. HttpOnly 防止 JavaScript 访问提升安全性，不会通过可会断脚本访问，只有 http 请求会携带这个 cookie，帮助防止跨站脚本攻击。
 4. SameSite 用于控制跨站请求是否携带 Cookie，防止 CSRF 攻击。
 
 ## 22. for...in 和 for...of 的区别

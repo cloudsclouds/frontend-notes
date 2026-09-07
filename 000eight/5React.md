@@ -53,7 +53,7 @@ React 的 Diff 有几个重要策略：
 ## 6. 组件 key 的作用及缺失的问题
 key 的作用是给列表中的每个元素一个唯一标识，帮助 React 在 Diff 时 快速识别元素变化、是否可复用。
 
-如果缺失 key， React 会默认使用索引作为 key， 当列表增删或排序时，可能导致元素错位更新，比如删除第一个元素，后面元素的索引会变，React 可能误判为 元素内容变化而非位置变化，从而重新创建 DOM。
+如果缺失 key， React 会默认使用索引作为 key，当列表增删或排序时，可能导致元素错位更新，比如删除第一个元素，后面元素的索引会变，React 可能误判为 元素内容变化而非位置变化，从而重新创建 DOM。
 
 ## 7. 合成事件 SyntheticEvent
 React 合成事件是对浏览器原生事件的封装，让事件处理在不同浏览器上表现一致。
@@ -165,8 +165,6 @@ function Form() {
 }
 ```
 
-
-
 ## 11. Hooks
 是 React 16.8 提供的一组函数，本质上 让函数组件也能使用状态和生命周期等特性。
 
@@ -177,7 +175,7 @@ function Form() {
 4. useCallback 和 useMemo，用于性能优化，缓存函数和计算结果；
 5. useRef，获取 DOM 元素或 保存跨渲染周期的变量。
 
-## 11.1 Hooks 的规则
+### 11.1 Hooks 的规则
 只能在函数组件或自定义 Hooks 的顶层调用（不可在条件、循环中），因为 Hooks 的调用顺序必须固定，这样 React 才能正确匹配每个 Hook 节点。
 
 在函数组件执行时，React 会维护一个 hooks 链表，每调用一个 Hook，就按顺序取出或创建对应的状态节点。如果 Hooks 写在条件语句中，会导致执行顺序不一致，从而出现状态错位问题。
@@ -283,7 +281,7 @@ useEffect(() => {
     }, []);
 ```
 
-2. 操作DOM：当需要直接操作DOM元素时，useRef也非常有用。例如，在组件加载后自动聚焦一个输入框：
+2. 操作DOM：当需要直接操作 DOM 元素时，useRef 也非常有用。例如，在组件加载后自动聚焦一个输入框：
 ```jsx
 const inputRef = useRef(null);
 useEffect(() => {
@@ -295,7 +293,6 @@ return ;
 ## 15. useMemo 与 useCallback 的区别
 useMemo 用于缓存计算结果，避免重复计算，优化的是组件内部的计算；
 useCallback 用于缓存函数的，它确保只有在依赖项变化时才重新创建函数，从而避免子组件不必要的重新渲染。
-
 例如，你有一个计算密集型的函数，它依赖于某些输入数据，你可以使用 useMemo 来缓存其计算结果：
 
 ```jsx
@@ -474,7 +471,7 @@ function Counter() {
 - Store 是存储 state 的对象，通过 createStore 创建，提供 getState、dispatch、subscribe 等方法。
 
 ### Redux 数据流动过程
-1. 组件通过 dispatch 触发Action；
+1. 组件通过 dispatch 触发 Action；
 2. Store 将当前的 state 和 action 传入 Reducer；
 3. Reducer 计算并返回新的 State
 4. Store 更新 state 后通知组件，组件重新渲染更新
@@ -508,19 +505,19 @@ function Counter() {
 ## 22. 如何避免不必要的重渲染？React 性能优化方法
 - 函数组件：使用 React.memo()包裹函数组件，缓存组件渲染结果；结合 useMemo /useCallback 缓存计算结果和传递给子组件的函数，避免因引用变化导致子组件重渲染。
 - 类组件：shouldComponentUpdate 手动判断是否更新 或继承 PureComponent 自动浅比较 props、state。
-- 合理使用key属性
+- 合理使用 key 属性
 - 代码分割
 
 ## 23. React.lazy 与 Suspense 的作用
 React 中通常使用 React.lazy 和 Suspense 实现路由级懒加载和组件懒加载，从而避免一次性加载所有组件导致首屏渲染时间过长。
 - React.lazy：动态导入组件，实现代码分割。
-- Suspense：包裹懒加载组件，提供加载中的UI（如loading动画）。
+- Suspense：包裹懒加载组件，提供加载中的 UI（如loading动画）。
 原理是利用 ES Module 的动态导入，Webpack 会自动进行代码分割，访问路由时才加载对应 Chunk。
 
 ## 24. React 18 新特性
-- 并发模式：支持优先级调度（如startTransition标记非紧急更新）。
+- 并发模式：支持优先级调度（如 startTransition 标记非紧急更新）。
 - 自动批处理：多个状态更新合并为一次渲染。
-- 新的Root API：createRoot替代ReactDOM.render。
+- 新的 Root API：createRoot 替代 ReactDOM.render。
 
 ## 25. React 16、17、18的主要区别
 - React 16：引入Fiber架构、错误边界、Portals、Fragment等
@@ -528,13 +525,13 @@ React 中通常使用 React.lazy 和 Suspense 实现路由级懒加载和组件�
 - React 18：引入并发渲染、自动批处理、Transitions API等
 
 ## 26. Error Boundary
-捕获子组件树中的JavaScript错误，避免整个应用崩溃。
+捕获子组件树中的 JavaScript 错误，避免整个应用崩溃。
 - componentDidCatch：捕获错误
 - static getDerivedStateFromError：渲染备用UI
 
 ## 27. 高阶组件（HOC）
 定义：高阶组件是接收组件并返回新组件的函数。 
-作用：复用组件逻辑、修改组件props、包装组件。 
+作用：复用组件逻辑、修改组件 props、包装组件。 
 实现方式：
 原组件：
 ```js
@@ -608,19 +605,19 @@ React 16.3新增的开发模式，用于检测不符合最佳实践的代码：
 </React.StrictMode>
 ```
 
-## 为什么 StrictMode 下 useEffect 会执行两次？
+### 30.1 为什么 StrictMode 下 useEffect 会执行两次？
 React18 的 StrictMode 在开发环境下会故意模拟一次组件的挂载、卸载和重新挂载流程，也就是 Mount → Unmount → Mount。
 这样可以帮助开发者检查副作用是否安全，特别是 useEffect 中是否正确进行了资源清理，比如事件监听、定时器、订阅或 WebSocket 连接等。
 因此看起来 useEffect 会执行两次，但实际上是组件被重新挂载了两次。
 这个行为只发生在开发环境，生产环境不会出现。
 
-## 31. 事件循环与React
-- React利用事件循环机制，将更新任务放入宏任务队列
-- 使用requestIdleCallback实现时间切片
+## 31. 事件循环与 React
+- React 利用事件循环机制，将更新任务放入宏任务队列
+- 使用 requestIdleCallback 实现时间切片
 - 微任务在当前宏任务执行完毕后立即执行
 - 高优先级任务可中断低优先级任务执行
 
-## 32. 虚拟DOM转Fiber流程
+## 32. 虚拟 DOM 转 Fiber 流程
 1. 从根节点开始DFS遍历
 2. 为每个虚拟DOM节点创建对应的Fiber节点
 3. 通过child、sibling、return属性构建Fiber链表
