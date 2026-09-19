@@ -16,3 +16,6 @@ pnpm-debug.log*
 *.tmp
 *.temp
 *.swp
+
+# Local-only project notes
+/001projects/
